@@ -75,11 +75,17 @@ public:
 
   /* Keywords */
   void setKeyword(std::string kw, std::string text);
+  static void setKeyword(std::string kw, std::string text);
   std::string getKeyword(std::string kw);
   bool getKeyword(std::string kw, std::string &text);
 
   /* Functions */
   void setFunction(std::string name, TemplateFunction callable);
+
+  /* Operators */
+  void setOperator(std::string, std::function<bool(Silicon*, std::string, std::string)> func);
+  void setOperator(std::string, std::function<bool(Silicon*, long long, long long)> func);
+  void setOperator(std::string, std::function<bool(Silicon*, long double, long double)> func);
 
 protected:
   Silicon(const char* data, long maxBufferLen);
@@ -94,6 +100,11 @@ protected:
   long computeBuiltinIf(char* strptr, std::string &destination, std::map<std::string, std::string> &arguments, bool write, int level);
 
   bool evaluateCondition(std::string condition);
+
+  /* Operators' stuff */
+  bool conditionStringOperator(std::string op, std::string a, std::string b);
+  bool conditionDoubleOperator(std::string op, long double a, long double b);
+  bool conditionLongOperator(std::string op, long long a, long long b);
 
   long getCurrentLine();
   long getCurrentPos();
@@ -110,7 +121,20 @@ private:
 
   std::map<std::string, std::string> localKeywords;
   std::map<std::string, TemplateFunction> localFunctions;
+
+  static std::map<std::string, std::string> globalKeywords;
+  static std::map<std::string, TemplateFunction> globalFunctions;
+
+  /* operators */
+  std::map<std::string, std::function<bool(Silicon*, std::string, std::string)>> localConditionStringOperators;
+  std::map<std::string, std::function<bool(Silicon*, long long, long long)>> localConditionLongOperators;
+  std::map<std::string, std::function<bool(Silicon*, long double, long double)>> localConditionDoubleOperators;
+
   /* caches and so... */
+
+  std::string getOperator(std::string condition, size_t pos, std::string &b);
+  short conditionNumericAB(std::string a, std::string b, long long &lla, long long &llb);
+  short conditionDoubleAB(std::string a, std::string b, long double &lda, long double &ldb);
 
   #if SILICON_DEBUG
   struct

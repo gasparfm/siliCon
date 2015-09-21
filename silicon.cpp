@@ -27,6 +27,7 @@
 #include <string>
 #include <cstdlib>
 #include <algorithm>
+#include <stdexcept>
 
 #define MAX(x ,y) ((x) > (y) ? (x) : (y))
 #define MIN(x ,y) ((x) < (y) ? (x) : (y))
@@ -43,6 +44,72 @@ namespace
     bool leaveUnmatchedKwds=true;
 
   } globalConfig;
+
+  struct AbsOperate
+  {
+    virtual bool apply(std::string op) =0;
+  };
+
+  template <typename T>
+  struct Operate : AbsOperate
+  {
+    Operate(T a, T b, std::function<bool(std::string, T, T)>opcb): a(a), b(b), opcallback(opcb)
+    {
+    }
+
+    bool apply(std::string op)
+    {
+      if (op == "==")
+	return (a == b);
+      else if (op == "!=")
+	return (a != b);
+      else if (op == ">)")
+	return (a>b);
+      else if (op == ">=")
+	return (a>=b);
+      else if (op == "<")
+	return (a<b);
+      else if (op == "<=")
+	return (a<b);
+      else if (op[0]=='!')
+	return this->opcallback(op, a, b);
+      else
+	throw SiliconException(18, "Unknown operator "+op, 0, 0);
+      /* functions... */
+    }
+
+  private:
+    T a;
+    T b;
+    std::function<bool(std::string, T, T)> opcallback;
+  };
+
+  struct OpController
+  {
+    /* The function is a callback for external operator */
+    OpController(std::string a, std::string b, std::function<bool(std::string, std::string, std::string)> opcb)
+    {
+      operate = new Operate<std::string>(a, b, opcb);
+    }
+
+    OpController(long double a, long double b, std::function<bool(std::string, long double, long double)> opcb)
+    {
+      operate = new Operate<long double>(a, b, opcb);
+    }
+
+    OpController(long long a, long long b, std::function<bool(std::string, long long, long long)> opcb)
+    {
+      operate = new Operate<long long>(a, b, opcb);
+    }
+
+    virtual ~OpController() { }
+    bool apply(std::string op)
+    {
+      return operate->apply(op);
+    }
+  private:
+    AbsOperate* operate;
+  };
 };
 /* Silicon & Silicon::createFromFile(std :: std::string & file, long maxBufferLen) */
 /* { */
@@ -376,10 +443,193 @@ bool Silicon::evaluateCondition(std::string condition)
     }
   else
     {
-      /* std::string a = getKeyword(condition) */
+      std::string a = getKeyword(condition.substr(0, op));
+      std::string b;
+      std::string _op = getOperator(condition, op, b);
+      if (b.empty())
+	throw SiliconException(13, "Right value can't be empty", getCurrentLine(), getCurrentPos());
+
+      short numeric;
+      long double lda, ldb;
+      long long lla, llb;
+
+      if ( (b.front()=='"') && (b.back()=='"') )
+	{
+	  b = b.substr(1, -1);
+	  numeric = 0;
+	}
+      else
+	{
+	  /* Gets long long or long double... */
+	  numeric = conditionNumericAB(a, b, lla, llb);
+	  if (!numeric)
+	    numeric = conditionDoubleAB(a, b, lda, ldb);
+	}
+
+      OpController* opc;
+      if (numeric == 0)
+	opc = new OpController(a, b, std::bind(&Silicon::conditionStringOperator, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+      else if (numeric == 1)
+      	opc = new OpController(lla, llb, std::bind(&Silicon::conditionLongOperator, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+      else if (numeric == 2)
+      	opc = new OpController(lda, ldb, std::bind(&Silicon::conditionDoubleOperator, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+      else
+	throw SiliconException(14, "Numeric type "+std::to_string(numeric)+" not implemented.", getCurrentLine(), getCurrentPos());
+
+      std::cout << "NUMERIC: "<<numeric<<std::endl;
+      bool res = opc->apply(_op);
+      delete opc;
+      return res;
     }
 
   return 0;
+}
+
+short Silicon::conditionNumericAB(std::string a, std::string b, long long &lla, long long &llb)
+{
+  try
+    {
+      std::string::size_type sz = 0;
+      lla = std::stoll(a, &sz);
+      if (sz != a.length())	/* Everything is not a number*/
+	return 0;
+
+      llb = std::stoll(b, &sz);
+      if (sz != b.length())
+	return 0;
+
+      return 1;
+    }
+  catch (const std::invalid_argument &inv)
+    {
+      return 0;
+    }
+}
+
+short Silicon::conditionDoubleAB(std::string a, std::string b, long double &lda, long double &ldb)
+{
+  try
+    {
+      std::string::size_type sz =0;
+
+      lda = std::stold(a, &sz);
+      if (sz != a.length())	/* Everything is not a number*/
+	return 0;
+
+      ldb = std::stold(b, &sz);
+      if (sz != b.length())	/* Everything is not a number*/
+	return 0;
+      return 2;
+    }
+  catch (const std::invalid_argument &inv)
+    {
+      return 0;
+    }
+}
+
+/* Operators:
+    =  (alias of ==
+    == (alias of =)
+    !=
+    <> (alias of !=>
+    >
+    >=
+    <
+    <=
+    !i=! (case insensitive equals)
+ */
+std::string Silicon::getOperator(std::string condition, size_t pos, std::string &b)
+{
+  size_t oplen=-1;
+  std::string op;
+
+  if (condition[pos]=='!')
+    {
+      if (condition[pos+1]=='=')
+	op="!=";
+      else
+	{
+	  /* may be any string */
+	  op = condition.substr(pos, condition.find("!", pos+1)-pos+1);
+	  std::transform(op.begin(), op.end(), op.begin(), ::tolower);
+	}
+    }
+  else if (condition[pos]=='=')
+    {
+      op = "==";
+      if (condition[pos+1]!='=')
+	oplen=1;
+    }
+  else if (condition[pos]=='<')
+    {
+      switch (condition[pos+1])
+	{
+	case '=':
+	  op = "<=";
+	  break;
+	case '>':
+	  op = "!=";
+	  break;
+	default:
+	  op = "<";
+	}
+    }
+  else if (condition[pos]=='>')
+    {
+      op = (condition[pos+1]=='=')?">=":">";
+    }
+  if (op.empty())
+    throw SiliconException(12, "Unknown operator used in "+condition, getCurrentLine(), getCurrentPos());
+
+  if (oplen==-1)
+    {
+      oplen = op.length();
+    }
+  b = condition.substr(pos+oplen);
+
+  return op;
+}
+
+bool Silicon::conditionStringOperator(std::string op, std::string a, std::string b)
+{
+  auto f = this->localConditionStringOperators.find(op);
+  if (f != this->localConditionStringOperators.end())
+    return f->second(this, a, b);
+
+  throw SiliconException(17, "Invalid condition operator "+op+" for string", getCurrentLine(), getCurrentPos());
+}
+
+bool Silicon::conditionDoubleOperator(std::string op, long double a, long double b)
+{
+  auto f = this->localConditionDoubleOperators.find(op);
+  if (f != this->localConditionDoubleOperators.end())
+    return f->second(this, a, b);
+
+  throw SiliconException(15, "Invalid condition operator "+op+" for double", getCurrentLine(), getCurrentPos());
+}
+
+bool Silicon::conditionLongOperator(std::string op, long long a, long long b)
+{
+  auto f = this->localConditionLongOperators.find(op);
+  if (f != this->localConditionLongOperators.end())
+    return f->second(this, a, b);
+
+  throw SiliconException(16, "Invalid condition operator "+op+" for long", getCurrentLine(), getCurrentPos());
+}
+
+void Silicon::setOperator(std::string name, std::function<bool(Silicon*, std::string, std::string)> func)
+{
+  localConditionStringOperators["!"+name+"!"] = func;
+}
+
+void Silicon::setOperator(std::string name, std::function<bool(Silicon*, long long, long long)> func)
+{
+  localConditionLongOperators[name] = func;
+}
+
+void Silicon::setOperator(std::string name, std::function<bool(Silicon*, long double, long double)> func)
+{
+  localConditionDoubleOperators[name] = func;
 }
 
 void Silicon::setKeyword(std::string kw, std::string text)
