@@ -59,36 +59,51 @@ protected:
 class Silicon
 {
 public:
-  typedef std::function<std::string(std::map<std::string, std::string>, std::string)> TemplateFunction;
+  using TemplateFunction = std::function<std::string(Silicon*, std::map<std::string, std::string>, std::string)>;
 
   virtual ~Silicon();
 
   /* static Silicon & createFromFile(std::string& file, long maxBufferLen=0); */
-  /* static Silicon & createFromFile(const char* file, long maxBufferLen=0); */
+  static Silicon createFromFile(const char* file, const char* defaultPath=NULL, long maxBufferLen=0);
   static Silicon createFromStr(std::string& data, long maxBufferLen=0);
   /* static Silicon & createFromStr(const char* data, long maxBufferLen=0); */
 
   std::string render();
 
   Silicon(Silicon&& sil);
-  Silicon(const Silicon& sil);
+
+  /* Base path */
+  inline void setBasePath(std::string newBasePath)
+  {
+    this->localConfig.basePath = newBasePath;
+  }
+
+  inline std::string getBasePath()
+  {
+    return this->localConfig.basePath;
+  }
 
   /* Keywords */
   void setKeyword(std::string kw, std::string text);
-  static void setKeyword(std::string kw, std::string text);
+  static void setGlobalKeyword(std::string kw, std::string text);
   std::string getKeyword(std::string kw);
   bool getKeyword(std::string kw, std::string &text);
 
   /* Functions */
   void setFunction(std::string name, TemplateFunction callable);
+  static void setGlobalFunction(std::string name, TemplateFunction callable);
 
   /* Operators */
   void setOperator(std::string, std::function<bool(Silicon*, std::string, std::string)> func);
   void setOperator(std::string, std::function<bool(Silicon*, long long, long long)> func);
   void setOperator(std::string, std::function<bool(Silicon*, long double, long double)> func);
+  void setGlobalOperator(std::string, std::function<bool(Silicon*, std::string, std::string)> func);
+  void setGlobalOperator(std::string, std::function<bool(Silicon*, long long, long long)> func);
+  void setGlobalOperator(std::string, std::function<bool(Silicon*, long double, long double)> func);
 
 protected:
   Silicon(const char* data, long maxBufferLen);
+  Silicon(const char* file, const char* defaultPath, long maxBufferLen);
   long parse(std::string& destination, char* strptr, bool write=true, std::string nested="", int level=0);
   long parseKeyword(char* strptr, std::string& keyword);
   long parseFunction(char* strptr, int &type, std::string& fname, std::map<std::string, std::string> &arguments, bool &autoClosed);
@@ -98,6 +113,8 @@ protected:
 
   long computeBuiltin(char* strptr, std::string &destination, std::string bif, std::map<std::string, std::string> &arguments, bool &autoClosed, bool write, int level);
   long computeBuiltinIf(char* strptr, std::string &destination, std::map<std::string, std::string> &arguments, bool write, int level);
+
+  TemplateFunction getFunction(std::string fun);
 
   bool evaluateCondition(std::string condition);
 
@@ -113,11 +130,17 @@ private:
   /* std::string _data;			/\* Template string *\/ */
   char* _data = NULL;
 
-  /* instance configuration */
-  long maxBufferLen;
+  struct
+  {
+    /* instance configuration */
+    long maxBufferLen;
 
-  /* Leave unmatched keywords */
-  bool leaveUnmatchedKwds;
+    /* Leave unmatched keywords */
+    bool leaveUnmatchedKwds;
+
+    /* Base view path */
+    std::string basePath;
+  } localConfig;
 
   std::map<std::string, std::string> localKeywords;
   std::map<std::string, TemplateFunction> localFunctions;
@@ -130,11 +153,17 @@ private:
   std::map<std::string, std::function<bool(Silicon*, long long, long long)>> localConditionLongOperators;
   std::map<std::string, std::function<bool(Silicon*, long double, long double)>> localConditionDoubleOperators;
 
+  static std::map<std::string, std::function<bool(Silicon*, std::string, std::string)>> globalConditionStringOperators;
+  static std::map<std::string, std::function<bool(Silicon*, long long, long long)>> globalConditionLongOperators;
+  static std::map<std::string, std::function<bool(Silicon*, long double, long double)>> globalConditionDoubleOperators;
+
   /* caches and so... */
 
   std::string getOperator(std::string condition, size_t pos, std::string &b);
   short conditionNumericAB(std::string a, std::string b, long long &lla, long long &llb);
   short conditionDoubleAB(std::string a, std::string b, long double &lda, long double &ldb);
+
+  void configure();
 
   #if SILICON_DEBUG
   struct

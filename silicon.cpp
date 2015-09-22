@@ -28,6 +28,9 @@
 #include <cstdlib>
 #include <algorithm>
 #include <stdexcept>
+#include <fstream>
+
+#define SILICONVERSION "0.1"
 
 #define MAX(x ,y) ((x) > (y) ? (x) : (y))
 #define MIN(x ,y) ((x) < (y) ? (x) : (y))
@@ -43,6 +46,8 @@ namespace
     /* If keyword didn't match, just write it */
     bool leaveUnmatchedKwds=true;
 
+    /* Base view path */
+    std::string basePath="./";
   } globalConfig;
 
   struct AbsOperate
@@ -72,7 +77,7 @@ namespace
       else if (op == "<=")
 	return (a<b);
       else if (op[0]=='!')
-	return this->opcallback(op, a, b);
+	return this->opcallback(op.substr(1,op.length()-2), a, b);
       else
 	throw SiliconException(18, "Unknown operator "+op, 0, 0);
       /* functions... */
@@ -110,26 +115,84 @@ namespace
   private:
     AbsOperate* operate;
   };
+
+  long filesize(std::string filename)
+  {
+    std::ifstream file( filename, std::ios::binary | std::ios::ate);
+    return file.tellg();
+  }
 };
+
+std::map<std::string, std::string> Silicon::globalKeywords;
+std::map<std::string, Silicon::TemplateFunction> Silicon::globalFunctions;
+std::map<std::string, std::function<bool(Silicon*, std::string, std::string)>> Silicon::globalConditionStringOperators;
+std::map<std::string, std::function<bool(Silicon*, long long, long long)>> Silicon::globalConditionLongOperators;
+std::map<std::string, std::function<bool(Silicon*, long double, long double)>> Silicon::globalConditionDoubleOperators;
+
 /* Silicon & Silicon::createFromFile(std :: std::string & file, long maxBufferLen) */
 /* { */
 /* } */
 
-Silicon::Silicon(const char * data, long maxBufferLen):maxBufferLen(maxBufferLen)
+Silicon::Silicon(const char * data, long maxBufferLen)
 {
-  /* Configure this instance max buffer length */
-  if (this->maxBufferLen==0)
-    this->maxBufferLen = globalConfig.maxBufferLen;
+  this->localConfig.maxBufferLen = maxBufferLen;
+  this->configure();
 
-  this->leaveUnmatchedKwds = globalConfig.leaveUnmatchedKwds;
+  std::size_t len = MIN(strlen(data), this->localConfig.maxBufferLen);
 
-  std::size_t len = MIN(strlen(data), this->maxBufferLen);
-  /* this->_data.reserve(len); */
   this->_data = (char*) malloc(sizeof(char)*(len+1));
-  /* this->_data.insert(0, data, this->maxBufferLen); /\* strncpy does not *\/ */
   this->_data = strncpy(this->_data, data, len);
 
   this->_data[len] = '\0';	 /* guarantee terminated strings. */
+}
+
+Silicon::Silicon(const char* file, const char* defaultPath, long maxBufferLen)
+{
+  this->localConfig.maxBufferLen = maxBufferLen;
+  this->localConfig.basePath = (defaultPath)?defaultPath:"";
+
+  this->configure();
+
+  std::string filename = this->localConfig.basePath+std::string(file);
+  std::ifstream fd (filename, std::ios::binary | std::ios::ate);
+  if (fd.fail())
+    throw SiliconException(19, "File "+this->localConfig.basePath+file+" not found", 0, 0);
+
+  /* Find out file size */
+  std::size_t len = MIN((long)fd.tellg(), this->localConfig.maxBufferLen);
+
+  fd.seekg(std::ios::beg);
+  this->_data = (char*) malloc(sizeof(char)*(len+1));
+  fd.read(this->_data, len);
+  this->_data[len]='\0';
+}
+
+
+void Silicon::configure()
+{
+  if (this->localConfig.basePath.empty())
+    this->localConfig.basePath = globalConfig.basePath;
+
+  /* Configure this instance max buffer length */
+  if (this->localConfig.maxBufferLen==0)
+    this->localConfig.maxBufferLen = globalConfig.maxBufferLen;
+
+  this->localConfig.leaveUnmatchedKwds = globalConfig.leaveUnmatchedKwds;
+
+  /* Fill global keywords, functions and conditions */
+  if (globalKeywords.empty())
+    {				/* Just once, when first template is instanced */
+      Silicon::setGlobalKeyword("SiliconVersion", SILICONVERSION);
+    }
+
+  if (globalFunctions.empty())
+    {
+      Silicon::setGlobalFunction(
+				 "SiliconTotalKeywords", 
+				 [this] (Silicon* s,  std::map<std::string, std::string>, std::string) { 
+				   return std::to_string(globalKeywords.size()+this->localKeywords.size()); 
+				 });
+    }
 }
 
 Silicon::~Silicon()
@@ -138,9 +201,10 @@ Silicon::~Silicon()
     free(_data);
 }
 
-/* Silicon & Silicon::createFromFile(const char * file, long maxBufferLen) */
-/* { */
-/* } */
+Silicon Silicon::createFromFile(const char * file, const char* defaultPath, long maxBufferLen)
+{
+  return Silicon(file, defaultPath, maxBufferLen);
+}
 
 Silicon Silicon::createFromStr(std::string & data, long maxBufferLen)
 {
@@ -161,14 +225,8 @@ std::string Silicon::render()
 
 Silicon::Silicon(Silicon && sil)
 {
-  std::cout<< "MOOOOOVE"<<std::endl;
   this->_data = sil._data;
   sil._data=NULL;
-}
-
-Silicon::Silicon(const Silicon & sil)
-{
-  std::cout << "COPIA!!"<<std::endl;
 }
 
 long Silicon::parse(std :: string & destination, char * strptr, bool write, std::string nested, int level)
@@ -188,7 +246,6 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	{
 	  if ( (moved=parseKeyword(strptr, temp)) >0 )
 	    {
-	      std::cout << temp << " es una keyword"<<std::endl;
 	      if (write)
 		destination+=putKeyword(temp);
 	      strptr+=moved;
@@ -196,11 +253,11 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	  else if ( (moved=parseFunction(strptr, type, temp, tempArgs, autoClosed)) >0 )
 	    {
 	      tempData.clear();
-	      std::cout << temp << " es una funcion con argumentos."<<std::endl;
-	      for (auto x : tempArgs)
-		{
-		  std::cout << "   - "<<x.first<<" = *"<<x.second<<"*"<<std::endl;
-		}
+	      /* std::cout << temp << " es una funcion con argumentos."<<std::endl; */
+	      /* for (auto x : tempArgs) */
+	      /* 	{ */
+	      /* 	  std::cout << "   - "<<x.first<<" = *"<<x.second<<"*"<<std::endl; */
+	      /* 	} */
 	      strptr+=moved;
 	      if (type == 0)	/* User function*/
 		{
@@ -212,11 +269,9 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 		    }
 		  if (write)
 		    {
-		      auto f = localFunctions.find(temp);
-		      if (f == localFunctions.end())
-			throw SiliconException(8, "Undefined funtion "+temp+".", getCurrentLine(), getCurrentPos());
+		      auto f = getFunction(temp);
 
-		      destination+=f->second(tempArgs, tempData);
+		      destination+=f(this, tempArgs, tempData);
 		    }
 		}
 	      else if (type == 1) /* Builtin methods*/
@@ -236,7 +291,6 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	    }
 	  else
 	    {
-	      std::cout << "no hay keyword"<<std::endl;
 	      destination+='{';	/* Put this in the resulting string*/
 	    }
 	  /* Maybe a keyword or sth. */
@@ -261,7 +315,7 @@ long Silicon::parseKeyword(char * strptr, std :: string & keyword)
   char* cursor = strptr;			/* Ahead two chars, just the { and read next*/
 
   #if SILICON_DEBUG
-  std::cout <<"KW: "<<strptr<<std::endl;
+  /* std::cout <<"KW: "<<strptr<<std::endl; */
   #endif
   keyword.clear();
 
@@ -300,7 +354,7 @@ long Silicon::parseFunction(char* strptr, int &type, std::string& fname, std::ma
   bool enclosed = false;
 
   #if SILICON_DEBUG
-  std::cout <<"FUNC: "<<strptr<<std::endl;
+  /* std::cout <<"FUNC: "<<strptr<<std::endl; */
   #endif
   autoClosed=false;
 
@@ -324,7 +378,6 @@ long Silicon::parseFunction(char* strptr, int &type, std::string& fname, std::ma
 	}
       else if (*cursor=='"')
 	{
-	  std::cout << "ENCLOSANDO"<<std::endl;
 	  enclosed=!enclosed;
 	  if (type==1)		/* For builtins we must see the enclosing later*/
 	    temp+=*cursor;
@@ -367,7 +420,7 @@ long Silicon::parseCloseNested(char* strptr, std::string closeName)
   std::string temp;
 
   #if SILICON_DEBUG
-  std::cout <<"CLOSE: "<<strptr<<std::endl;
+  /* std::cout <<"CLOSE: "<<strptr<<std::endl; */
   #endif
 
   ahead(&cursor, 2);
@@ -377,10 +430,8 @@ long Silicon::parseCloseNested(char* strptr, std::string closeName)
       if ( (*cursor=='}') && (cursor[1]=='}') )
 	{
 	  if (temp != closeName)
-	    {
-	      std::cout << "*"<<temp<<"***"<<closeName<<"****"<<std::endl;
-	      throw SiliconException(6, "Unmatching close string", getCurrentLine(), getCurrentPos());
-	    }
+	    throw SiliconException(6, "Unmatching close string", getCurrentLine(), getCurrentPos());
+
 	  return cursor-strptr+1;
 	}
       else
@@ -391,6 +442,19 @@ long Silicon::parseCloseNested(char* strptr, std::string closeName)
 
   /* If we are here, it's probably a corrupt file */
   throw SiliconException(5, "Unterminated keyword close string", getCurrentLine(), getCurrentPos());
+}
+
+Silicon::TemplateFunction Silicon::getFunction(std::string fun)
+{
+  auto f = localFunctions.find(fun);
+  if (f != localFunctions.end())
+    return f->second;
+
+  f = globalFunctions.find(fun);
+  if (f != globalFunctions.end())
+    return f->second;
+
+  throw SiliconException(8, "Undefined funtion "+fun+".", getCurrentLine(), getCurrentPos());
 }
 
 long Silicon::computeBuiltin(char* strptr, std::string &destination, std::string bif, std::map<std::string, std::string> &arguments, bool &autoClosed, bool write, int level)
@@ -455,7 +519,7 @@ bool Silicon::evaluateCondition(std::string condition)
 
       if ( (b.front()=='"') && (b.back()=='"') )
 	{
-	  b = b.substr(1, -1);
+	  b = b.substr(1, b.length()-2);
 	  numeric = 0;
 	}
       else
@@ -476,7 +540,6 @@ bool Silicon::evaluateCondition(std::string condition)
       else
 	throw SiliconException(14, "Numeric type "+std::to_string(numeric)+" not implemented.", getCurrentLine(), getCurrentPos());
 
-      std::cout << "NUMERIC: "<<numeric<<std::endl;
       bool res = opc->apply(_op);
       delete opc;
       return res;
@@ -619,7 +682,7 @@ bool Silicon::conditionLongOperator(std::string op, long long a, long long b)
 
 void Silicon::setOperator(std::string name, std::function<bool(Silicon*, std::string, std::string)> func)
 {
-  localConditionStringOperators["!"+name+"!"] = func;
+  localConditionStringOperators[name] = func;
 }
 
 void Silicon::setOperator(std::string name, std::function<bool(Silicon*, long long, long long)> func)
@@ -632,15 +695,44 @@ void Silicon::setOperator(std::string name, std::function<bool(Silicon*, long do
   localConditionDoubleOperators[name] = func;
 }
 
+void Silicon::setGlobalOperator(std::string name, std::function<bool(Silicon*, std::string, std::string)> func)
+{
+  globalConditionStringOperators[name] = func;
+}
+
+void Silicon::setGlobalOperator(std::string name, std::function<bool(Silicon*, long long, long long)> func)
+{
+  globalConditionLongOperators[name] = func;
+}
+
+void Silicon::setGlobalOperator(std::string name, std::function<bool(Silicon*, long double, long double)> func)
+{
+  globalConditionDoubleOperators[name] = func;
+}
+
 void Silicon::setKeyword(std::string kw, std::string text)
 {
   localKeywords[kw] = text;
 }
 
+void Silicon::setGlobalKeyword(std::string kw, std::string text)
+{
+  globalKeywords[kw] = text;
+}
+
 bool Silicon::getKeyword(std::string kw, std::string &text)
 {
+  /* Is a local keyword? */
   auto index = localKeywords.find(kw);
   if (index != localKeywords.end())
+    {
+      text = index->second;
+      return true;
+    }
+
+  /* Is a global keyword? */
+  index = globalKeywords.find(kw);
+  if (index != globalKeywords.end())
     {
       text = index->second;
       return true;
@@ -667,7 +759,7 @@ std::string Silicon::putKeyword(std::string keyword)
 
   if (!getKeyword(keyword, text))
     {
-      if (this->leaveUnmatchedKwds)
+      if (this->localConfig.leaveUnmatchedKwds)
 	return "{{"+keyword+"}}";
 
       return "";
@@ -676,10 +768,16 @@ std::string Silicon::putKeyword(std::string keyword)
     return text;
 }
 
-void Silicon::setFunction(std::string name, TemplateFunction callable)
+void Silicon::setFunction(std::string name, Silicon::TemplateFunction callable)
 {
   localFunctions[name] = callable;
 }
+
+void Silicon::setGlobalFunction(std::string name, Silicon::TemplateFunction callable)
+{
+  globalFunctions[name] = callable;
+}
+
 
 long Silicon::getCurrentLine()
 {
