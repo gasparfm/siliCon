@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <fstream>
+#include <ctime>
 
 #define SILICONVERSION "0.1"
 
@@ -123,6 +124,20 @@ namespace
   }
 };
 
+  /* As far as I know, GCC 5.2 implements put_time !!!!!!!! */
+#if defined(__GNUC__) && (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__ <= 50200 )
+  namespace std
+  {
+    static std::string put_time( const std::tm* tmb, const char* fmt )
+    {
+      std::string s( 128, '\0' );
+      while( !strftime( &s[0], s.size(), fmt, tmb ) )
+  	s.resize( s.size() + 128 );
+      return s;
+    }
+  };
+#endif
+
 std::map<std::string, std::string> Silicon::globalKeywords;
 std::map<std::string, Silicon::TemplateFunction> Silicon::globalFunctions;
 std::map<std::string, std::function<bool(Silicon*, std::string, std::string)>> Silicon::globalConditionStringOperators;
@@ -192,7 +207,19 @@ void Silicon::configure()
 				 [this] (Silicon* s,  std::map<std::string, std::string>, std::string) { 
 				   return std::to_string(globalKeywords.size()+this->localKeywords.size()); 
 				 });
+      Silicon::setGlobalFunction("date", std::bind(&Silicon::globalFuncDate, this, std::placeholders::_1, std::placeholders::_2));
     }
+}
+
+std::string Silicon::globalFuncDate(Silicon* s, std::map<std::string, std::string> options)
+{
+  auto fmt = options.find("format");
+  std::time_t now = time(NULL);
+  std::tm tm;
+  localtime_r( &now, &tm );
+
+  std::string format = ( fmt !=options.end())?fmt->second:"%Y%m%d";
+  return std::put_time(&tm, format.c_str());
 }
 
 Silicon::~Silicon()
@@ -217,7 +244,7 @@ Silicon Silicon::createFromStr(std::string & data, long maxBufferLen)
 
 std::string Silicon::render()
 {
-  std::string out;
+  std::string template;
   resetStats();
   parse(out, this->_data);
   return out;

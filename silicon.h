@@ -126,6 +126,9 @@ protected:
   long getCurrentLine();
   long getCurrentPos();
 
+  /* Default global functions */
+  std::string globalFuncDate(Silicon* s, std::map<std::string, std::string> options);
+
 private:
   /* std::string _data;			/\* Template string *\/ */
   char* _data = NULL;
