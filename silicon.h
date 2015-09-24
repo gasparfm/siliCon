@@ -8,6 +8,7 @@
 #include <exception>
 #include <functional>
 #include <map>
+#include <vector>
 
 #define MAXBUFFERLEN 16384
 
@@ -59,16 +60,26 @@ protected:
 class Silicon
 {
 public:
-  using TemplateFunction = std::function<std::string(Silicon*, std::map<std::string, std::string>, std::string)>;
+  enum LayoutType
+  {
+    FILE,
+    DATA
+  };
+  using StringMap = std::map<std::string, std::string>;
+  using TemplateFunction = std::function<std::string(Silicon*, StringMap, std::string)>;
+  using FunctionMap = std::map<std::string, TemplateFunction>;
+  using StringOperator = std::function<bool(Silicon*, std::string, std::string)>;
+  using LongOperator = std::function<bool(Silicon*, long long, long long)>;
+  using DoubleOperator = std::function<bool(Silicon*, long double, long double)>;
 
   virtual ~Silicon();
 
-  /* static Silicon & createFromFile(std::string& file, long maxBufferLen=0); */
+  static Silicon createFromFile(std::string& file, std::string defaultPath="", long maxBufferLen=0);
   static Silicon createFromFile(const char* file, const char* defaultPath=NULL, long maxBufferLen=0);
   static Silicon createFromStr(std::string& data, long maxBufferLen=0);
-  /* static Silicon & createFromStr(const char* data, long maxBufferLen=0); */
+  static Silicon createFromStr(const char* data, long maxBufferLen=0);
 
-  std::string render();
+  std::string render(bool useLayout=true);
 
   Silicon(Silicon&& sil);
 
@@ -83,36 +94,47 @@ public:
     return this->localConfig.basePath;
   }
 
+  /* Layouts */
+  void setLayout(LayoutType ltype, const char* layout);
+  void setLayout(std::string file);
+
   /* Keywords */
   void setKeyword(std::string kw, std::string text);
   static void setGlobalKeyword(std::string kw, std::string text);
   std::string getKeyword(std::string kw);
   bool getKeyword(std::string kw, std::string &text);
+  static void setContentsKeyword(std::string newck);
+  static std::string getContentsKeyword();
+
+  /* Collections */
+  void addCollection(std::string kw, std::vector<StringMap> coll);
 
   /* Functions */
   void setFunction(std::string name, TemplateFunction callable);
   static void setGlobalFunction(std::string name, TemplateFunction callable);
 
   /* Operators */
-  void setOperator(std::string, std::function<bool(Silicon*, std::string, std::string)> func);
-  void setOperator(std::string, std::function<bool(Silicon*, long long, long long)> func);
-  void setOperator(std::string, std::function<bool(Silicon*, long double, long double)> func);
-  void setGlobalOperator(std::string, std::function<bool(Silicon*, std::string, std::string)> func);
-  void setGlobalOperator(std::string, std::function<bool(Silicon*, long long, long long)> func);
-  void setGlobalOperator(std::string, std::function<bool(Silicon*, long double, long double)> func);
+  void setOperator(std::string, StringOperator func);
+  void setOperator(std::string, LongOperator func);
+  void setOperator(std::string, DoubleOperator func);
+  void setGlobalOperator(std::string, StringOperator func);
+  void setGlobalOperator(std::string, LongOperator func);
+  void setGlobalOperator(std::string, DoubleOperator func);
 
 protected:
   Silicon(const char* data, long maxBufferLen);
   Silicon(const char* file, const char* defaultPath, long maxBufferLen);
   long parse(std::string& destination, char* strptr, bool write=true, std::string nested="", int level=0);
   long parseKeyword(char* strptr, std::string& keyword);
-  long parseFunction(char* strptr, int &type, std::string& fname, std::map<std::string, std::string> &arguments, bool &autoClosed);
+  long parseFunction(char* strptr, int &type, std::string& fname, StringMap &arguments, bool &autoClosed);
   long parseCloseNested(char* strptr, std::string closeName);
 
+  long getNumericArgument(std::map<std::string, std::string>::iterator);
   std::string putKeyword(std::string keyword);
 
-  long computeBuiltin(char* strptr, std::string &destination, std::string bif, std::map<std::string, std::string> &arguments, bool &autoClosed, bool write, int level);
-  long computeBuiltinIf(char* strptr, std::string &destination, std::map<std::string, std::string> &arguments, bool write, int level);
+  long computeBuiltin(char* strptr, std::string &destination, std::string bif, StringMap &arguments, bool &autoClosed, bool write, int level);
+  long computeBuiltinIf(char* strptr, std::string &destination, StringMap &arguments, bool write, int level);
+  long computeBuiltinCollection(char* strptr, std::string &destination, StringMap &arguments, bool write, int level);
 
   TemplateFunction getFunction(std::string fun);
 
@@ -126,9 +148,11 @@ protected:
   long getCurrentLine();
   long getCurrentPos();
 
-  /* Default global functions */
-  std::string globalFuncDate(Silicon* s, std::map<std::string, std::string> options);
+  StringMap separateArguments(StringMap &arguments);
 
+  /* Default global functions */
+  std::string globalFuncDate(Silicon* s, StringMap options);
+  std::string globalFuncBlock(Silicon* s, StringMap options);
 private:
   /* std::string _data;			/\* Template string *\/ */
   char* _data = NULL;
@@ -145,23 +169,30 @@ private:
     std::string basePath;
   } localConfig;
 
-  std::map<std::string, std::string> localKeywords;
-  std::map<std::string, TemplateFunction> localFunctions;
+  void extractFile(char **ptr, std::string filename, bool usePath=true);
+  void copyBuffer(char **ptr, const char* origin);
 
-  static std::map<std::string, std::string> globalKeywords;
-  static std::map<std::string, TemplateFunction> globalFunctions;
+  StringMap localKeywords;
+  FunctionMap localFunctions;
+  std::map<std::string, std::vector<StringMap > > localCollections;
+
+  static std::string contentsKeyword;
+  static char* layoutData;
+  static StringMap globalKeywords;
+  static FunctionMap globalFunctions;
 
   /* operators */
-  std::map<std::string, std::function<bool(Silicon*, std::string, std::string)>> localConditionStringOperators;
-  std::map<std::string, std::function<bool(Silicon*, long long, long long)>> localConditionLongOperators;
-  std::map<std::string, std::function<bool(Silicon*, long double, long double)>> localConditionDoubleOperators;
+  std::map<std::string, StringOperator> localConditionStringOperators;
+  std::map<std::string, LongOperator> localConditionLongOperators;
+  std::map<std::string, DoubleOperator> localConditionDoubleOperators;
 
-  static std::map<std::string, std::function<bool(Silicon*, std::string, std::string)>> globalConditionStringOperators;
-  static std::map<std::string, std::function<bool(Silicon*, long long, long long)>> globalConditionLongOperators;
-  static std::map<std::string, std::function<bool(Silicon*, long double, long double)>> globalConditionDoubleOperators;
+  static std::map<std::string, StringOperator> globalConditionStringOperators;
+  static std::map<std::string, LongOperator> globalConditionLongOperators;
+  static std::map<std::string, DoubleOperator> globalConditionDoubleOperators;
 
   /* caches and so... */
 
+  /* operator helpers */
   std::string getOperator(std::string condition, size_t pos, std::string &b);
   short conditionNumericAB(std::string a, std::string b, long long &lla, long long &llb);
   short conditionDoubleAB(std::string a, std::string b, long double &lda, long double &ldb);
@@ -175,6 +206,7 @@ private:
     long pos;
     long keywords;
     long functions;
+    bool update;
   } Stats;
   #endif
 
@@ -185,6 +217,7 @@ private:
     Stats.pos =1;
     Stats.keywords =0;
     Stats.functions =0;
+    Stats.update = true;
     #endif
   }
 
@@ -195,19 +228,30 @@ private:
     #endif
   }
 
+  inline void stopStatsUpdate()
+  {
+    #if SILICON_DEBUG
+    Stats.update = false;
+    #endif
+  }
+
   inline void ahead(char ** ptr, long howmany=1)
   {
     #if SILICON_DEBUG
     while ( (howmany-->0) && (**ptr != '\0') )
       {
 	++*ptr;
-	++Stats.pos;
-	if (**ptr == '\n')
+	if (Stats.update)
 	  {
-	    Stats.line++;
-	    Stats.pos=1;
+	    ++Stats.pos;
+	    if (**ptr == '\n')
+	      {
+		Stats.line++;
+		Stats.pos=1;
+	      }
 	  }
       }
+    Stats.update = true;
     #else
       *ptr+=howmany;
     #endif
