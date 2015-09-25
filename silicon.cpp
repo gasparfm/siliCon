@@ -1,23 +1,22 @@
 /**
 *************************************************************
 * @file silicon.cpp
-* @brief Breve descripción
-* Pequeña documentación del archivo
+* @brief Output templating system for C++11
 *
+* Provides an easy way to use templates for text output, you
+* can output to screen, to a web page (using CGI or C++ server)
 *
+* @author Gaspar Fernández <gaspar.fernandez@totaki.com>
+* @version 0.2
 *
+* @date 30 aug 2015
 *
+* Changelog:
+*   20150925 : Launched version 0.2
 *
-* @author Gaspar Fernández <blakeyed@totaki.com>
-* @version
-* @date 18 sep 2015
-* Historial de cambios:
-*
-*
-*
-*
-*
-*
+* To-do:
+*   - More default keywords / conditions / functions
+*   - Make setLayout static
 *
 *************************************************************/
 
@@ -31,8 +30,7 @@
 #include <fstream>
 #include <ctime>
 
-#define SILICONVERSION "0.1"
-
+#define SILICONVERSION "0.2"
 #define DIRECTORY_SEPARATOR '/'
 
 #define MAX(x ,y) ((size_t)(x) > (size_t)(y) ? (x) : (y))
@@ -53,25 +51,50 @@ namespace
     std::string basePath="./";
   } globalConfig;
 
+  /**
+   * Operate abstract class.
+   * What Operate must have. Used to group operations with 
+   * strings/longs/doubles and so.
+   */
   struct AbsOperate
   {
+    /**
+     * Apply operation. Once we have a and b terms, apply operation op
+     *
+     * @param op Operation to perform (==, !=, >=, <=...)
+     *
+     * @return logic operation applied
+     */
     virtual bool apply(std::string op) =0;
   };
 
+  /**
+   * Operates with type T, whatever it is
+   */
   template <typename T>
   struct Operate : AbsOperate
   {
+    /**
+     * Constructor with operads and function
+     *
+     * @param a Operand a
+     * @param b Operand b
+     * @param opcb Non-standard operations will ask this function
+     */
     Operate(T a, T b, std::function<bool(std::string, T, T)>opcb): a(a), b(b), opcallback(opcb)
     {
     }
 
+    /**
+     * Apply operation
+     */
     bool apply(std::string op)
     {
       if (op == "==")
 	return (a == b);
       else if (op == "!=")
 	return (a != b);
-      else if (op == ">)")
+      else if (op == ">=")
 	return (a>b);
       else if (op == ">=")
 	return (a>=b);
@@ -83,7 +106,6 @@ namespace
 	return this->opcallback(op.substr(1,op.length()-2), a, b);
       else
 	throw SiliconException(18, "Unknown operator "+op, 0, 0);
-      /* functions... */
     }
 
   private:
@@ -92,25 +114,46 @@ namespace
     std::function<bool(std::string, T, T)> opcallback;
   };
 
+  /**
+   * Makes use of Operate transparent
+   */
   struct OpController
   {
-    /* The function is a callback for external operator */
+    /**
+     * @param a Operand a
+     * @param b Operand b
+     * @param opcb More operations callback
+    */
     OpController(std::string a, std::string b, std::function<bool(std::string, std::string, std::string)> opcb)
     {
       operate = new Operate<std::string>(a, b, opcb);
     }
 
+    /**
+     * @param a Operand a
+     * @param b Operand b
+     * @param opcb More operations callback
+    */
     OpController(long double a, long double b, std::function<bool(std::string, long double, long double)> opcb)
     {
       operate = new Operate<long double>(a, b, opcb);
     }
 
+    /**
+     * @param a Operand a
+     * @param b Operand b
+     * @param opcb More operations callback
+    */
     OpController(long long a, long long b, std::function<bool(std::string, long long, long long)> opcb)
     {
       operate = new Operate<long long>(a, b, opcb);
     }
 
     virtual ~OpController() { }
+
+    /**
+     * Apply operation
+     */
     bool apply(std::string op)
     {
       return operate->apply(op);
@@ -119,18 +162,41 @@ namespace
     AbsOperate* operate;
   };
 
+  /**
+   * Get filesize for C++
+   * @param filename
+   * @return file size
+   */
   long filesize(std::string filename)
   {
     std::ifstream file( filename, std::ios::binary | std::ios::ate);
     return file.tellg();
   }
 
+  /**
+   * The file specified has absolute path?
+   * Just for *nix systems. 
+   *
+   * @param filename
+   * @return true if path is absolute
+   */
   bool isAbsolutePath(std::string filename)
   {
     /* One day, it will be Windows compatible */
     return (filename[0]=='/');
   }
 
+  /**
+   * Concats filename and basePath. Making it a good path
+   * basePath can end with / or not. Will be added if needed
+   *
+   * @param filename File Name
+   * @param basePath Base path
+   * @param usePath Must use basePath. Use false if filename
+   *        will use relative path data.
+   *
+   * @return path+file
+   */
   std::string fixPath(std::string filename, std::string basePath, bool usePath)
   {
     if ( (!usePath) || (basePath.empty()) || (isAbsolutePath(filename)) || (filename[0]=='.') )
@@ -141,9 +207,24 @@ namespace
 
     return basePath+filename;
   }
+
+  /**
+   * Test if globals are loaded. They will be loaded the first time
+   * we instance the class. But globals are static, so they will be
+   * used for future Silicon instances
+   */
+  static struct 
+  {
+    bool keywords,
+      functions,
+      conditions;
+  } configuredGlobals = {false, false, false};
 }
 
-  /* As far as I know, GCC 5.2 implements put_time !!!!!!!! */
+/* As far as I know, GCC 5.2 implements put_time !!!!!!!! */
+/* We don't have put_time in earlier GCC versions, so, if we
+ use one of them, this function will be used instead.
+*/
 #if defined(__GNUC__) && (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__ <= 50200 )
   namespace std
   {
@@ -168,6 +249,21 @@ char* Silicon::layoutData=NULL;
 Silicon Silicon::createFromFile(std::string & file, std::string defaultPath, long maxBufferLen)
 {
   return Silicon(file.c_str(), (defaultPath.empty())?NULL:defaultPath.c_str(), maxBufferLen);
+}
+
+inline void Silicon::SetBasePathGlobal(std::string newval)
+{
+  globalConfig.basePath = newval;
+}
+
+inline void Silicon::setLeaveUnmatchedKwdsGlobal(bool newval)
+{
+  globalConfig.leaveUnmatchedKwds = newval;
+}
+
+inline void Silicon::setMaxBufferLenGlobal(long newval)
+{
+  globalConfig.maxBufferLen = newval;
 }
 
 Silicon::Silicon(const char * data, long maxBufferLen)
@@ -228,12 +324,14 @@ void Silicon::configure()
   this->localConfig.leaveUnmatchedKwds = globalConfig.leaveUnmatchedKwds;
 
   /* Fill global keywords, functions and conditions */
-  if (globalKeywords.empty())
+  if (!configuredGlobals.keywords)
     {				/* Just once, when first template is instanced */
       Silicon::setGlobalKeyword("SiliconVersion", SILICONVERSION);
+      std::cout << "METO SILICONVERSION"<<std::endl;
+      configuredGlobals.keywords = true;
     }
 
-  if (globalFunctions.empty())
+  if (!configuredGlobals.functions)
     {
       Silicon::setGlobalFunction(
 				 "SiliconTotalKeywords", 
@@ -242,6 +340,13 @@ void Silicon::configure()
 				 });
       Silicon::setGlobalFunction("date", std::bind(&Silicon::globalFuncDate, this, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("block", std::bind(&Silicon::globalFuncBlock, this, std::placeholders::_1, std::placeholders::_2));
+      configuredGlobals.functions = true;
+    }
+
+  if (!configuredGlobals.conditions)
+    {
+      /* Conditions globals */
+      configuredGlobals.conditions = true;
     }
 }
 
@@ -275,6 +380,36 @@ void Silicon::addCollection(std::string kw, std::vector<Silicon::StringMap> coll
 {
   localCollections[kw] = coll;
 }
+
+void Silicon::addToCollection(std::string kw, StringMap content)
+{
+  auto el = localCollections.find(kw);
+  if (el == localCollections.end())
+    localCollections[kw] = std::vector<StringMap>({content});
+  else
+    localCollections[kw].push_back(content);
+}
+
+long Silicon::addToCollection(std::string kw, long pos, std::string key, std::string val)
+{
+  auto el = localCollections.find(kw);
+  if (el == localCollections.end())
+    {
+      localCollections[kw] = std::vector<StringMap>({ { {key, val} } });
+      return 0;			/* position 0*/
+    }
+  else if ( (pos == -1) || (pos>=(long)el->second.size()) )
+    {
+      localCollections[kw].push_back( { {key, val} });
+      return localCollections[kw].size()-1;
+    }
+  else
+    {
+      localCollections[kw][(size_t)pos].insert({key, val});
+      return pos;
+    }
+}
+
 
 Silicon::~Silicon()
 {
@@ -579,19 +714,36 @@ Silicon::StringMap Silicon::separateArguments(Silicon::StringMap &arguments)
   return tmp;
 }
 
-long Silicon::getNumericArgument(std::map<std::string, std::string>::iterator option)
+long Silicon::getNumericArgument(Silicon::StringMap &args, std::string argument, long defaultVal, bool required)
 {
-  return 10;
+  auto _arg = args.find(argument);
+  if (_arg==args.end())
+    {
+      if (required)
+	throw SiliconException(23, "Required argument "+argument+" not found", getCurrentLine(), getCurrentPos());
+      else
+	return defaultVal;
+    }
+
+  try
+    {
+      std::string::size_type sz = 0;
+      long res = std::stoll(_arg->second, &sz);
+      if (sz != _arg->second.length())	/* Everything is not a number*/
+	throw SiliconException(24, "Argument "+argument+" MUST be numeric", getCurrentLine(), getCurrentPos());
+
+      return res;
+    }
+  catch (const std::invalid_argument &inv)
+    {
+      throw SiliconException(25, "Argument "+argument+" MUST be numeric", getCurrentLine(), getCurrentPos());
+    }
 }
 
 long Silicon::computeBuiltinCollection(char* strptr, std::string &destination, Silicon::StringMap &arguments, bool write, int level)
 {
   arguments =this->separateArguments(arguments);
-  for (auto j : arguments)
-    std::cout << "ARG: "<<j.first<<" = "<<j.second<<std::endl;
-
   auto _var = arguments.find("var");
-  auto _iterations = arguments.find("iterations");
 
   if (_var == arguments.end())
     throw SiliconException(21, "Collection not specified", getCurrentLine(), getCurrentPos());
@@ -604,13 +756,25 @@ long Silicon::computeBuiltinCollection(char* strptr, std::string &destination, S
   long line = 0;
   long totalLines = coll->second.size();
 
-  /* long iterations = getNumericArgument(_iterations); */
+  long iterations = getNumericArgument(arguments, "loops", totalLines);
+  if (iterations>totalLines)
+    iterations = totalLines;
+
   /* if (_iterations == arguments.end()) */
   /*   iterations = totalLines; */
   ahead(&strptr);
   this->setKeyword(_var->second+"._totalLines", std::to_string(totalLines));
+  this->setKeyword(_var->second+"._totalIterations", std::to_string(iterations));
+
   for (auto i : coll->second)
     {
+      if (line == iterations)
+	break;
+      else
+	this->setKeyword(_var->second+"._last", (line == iterations-1)?"1":"0");
+
+      this->setKeyword(_var->second+"._even", (line%2==0)?"1":"0");
+
       this->setKeyword(_var->second+"._lineNumber", std::to_string(line));
       for (auto z : i)
 	{
@@ -659,12 +823,17 @@ bool Silicon::evaluateCondition(std::string condition)
   auto op = condition.find_first_of("!<>=");
   if (op == std::string::npos)
     {				/* No operator*/
-
       /* Numeric statement */
       if (std::all_of(condition.begin(), condition.end(), ::isdigit))
 	return (std::stoi(condition));
       else
-	return (!getKeyword(condition).empty());
+	{
+	  std::string kw = getKeyword(condition);
+	  if (std::all_of(kw.begin(), kw.end(), ::isdigit))
+	    return (std::stoi(kw));
+
+	  return (!kw.empty());
+	}
     }
   else
     {
