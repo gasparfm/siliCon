@@ -17,6 +17,16 @@
 * To-do:
 *   - More default keywords / conditions / functions
 *   - Make setLayout static
+*   - Finish metrics for debugging:
+*        + function count
+*        + conditions count
+*   - Limit nesting levels
+*   - Template caching
+*   - complete if function. Logic operations with conditions
+*   - builtins: for, while
+*   - line/position isn't correct when using template/layout/blocks
+*   - function to increment or change variable or keyword values (important)
+*   - function to add stuff to collections
 *
 *************************************************************/
 
@@ -290,7 +300,7 @@ void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
 
   std::ifstream fd (filename, std::ios::binary | std::ios::ate);
   if (fd.fail())
-    throw SiliconException(19, "File "+this->localConfig.basePath+filename+" not found", 0, 0);
+    throw SiliconException(19, "File "+filename+" not found", 0, 0);
 
   /* Find out file size */
   std::size_t len = MIN((long)fd.tellg(), this->localConfig.maxBufferLen);
@@ -327,7 +337,6 @@ void Silicon::configure()
   if (!configuredGlobals.keywords)
     {				/* Just once, when first template is instanced */
       Silicon::setGlobalKeyword("SiliconVersion", SILICONVERSION);
-      std::cout << "METO SILICONVERSION"<<std::endl;
       configuredGlobals.keywords = true;
     }
 
@@ -476,7 +485,7 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	  else if ( (moved=parseFunction(strptr, type, temp, tempArgs, autoClosed)) >0 )
 	    {
 	      tempData.clear();
-	      /* std::cout << temp << " es una funcion con argumentos."<<std::endl; */
+	      /* std::cout << temp << " is a function with arguments."<<std::endl; */
 	      /* for (auto x : tempArgs) */
 	      /* 	{ */
 	      /* 	  std::cout << "   - "<<x.first<<" = *"<<x.second<<"*"<<std::endl; */

@@ -368,47 +368,291 @@ public:
 
   /* Operators related function */
 
-  void setOperator(std::string, StringOperator func);
-  void setOperator(std::string, LongOperator func);
-  void setOperator(std::string, DoubleOperator func);
-  void setGlobalOperator(std::string, StringOperator func);
-  void setGlobalOperator(std::string, LongOperator func);
-  void setGlobalOperator(std::string, DoubleOperator func);
+  /**
+   * Sets operator for strings. It will be a function to compare two strings
+   *
+   * @param name Operator's name
+   * @param func Callback (std::function<bool(Silicon*, std::string, std::string)>)
+   */
+  void setOperator(std::string name, StringOperator func);
+
+  /**
+   * Sets operator for longs. It will be a function to compare two numbers
+   *
+   * @param name Operator's name
+   * @param func Callback (std::function<bool(Silicon*, long, long)>)
+   */
+  void setOperator(std::string name, LongOperator func);
+
+  /**
+   * Sets operator for doubles. It will be a function to compare two doubles
+   *
+   * @param name Operator's name
+   * @param func Callback (std::function<bool(Silicon*, double, double)>)
+   */
+  void setOperator(std::string name, DoubleOperator func);
+
+  /**
+   * Sets global operator for strings. It will be a function to compare two strings
+   *
+   * @param name Operator's name
+   * @param func Callback (std::function<bool(Silicon*, std::string, std::string)>)
+   */
+  void setGlobalOperator(std::string name, StringOperator func);
+
+  /**
+   * Sets global operator for longs. It will be a function to compare two numbers
+   *
+   * @param name Operator's name
+   * @param func Callback (std::function<bool(Silicon*, long, long)>)
+   */
+  void setGlobalOperator(std::string name, LongOperator func);
+
+  /**
+   * Sets global operator for doubles. It will be a function to compare two doubles
+   *
+   * @param name Operator's name
+   * @param func Callback (std::function<bool(Silicon*, double, double)>)
+   */
+  void setGlobalOperator(std::string name, DoubleOperator func);
 
 protected:
+  /* Protected methods. Constructor */
+
+  /**
+   * Constructor to create instance from string
+   *
+   * @param data String
+   * @param maxBufferLen Change max Buffer Len. If 0 will use global setting
+   */
   Silicon(const char* data, long maxBufferLen);
+
+  /**
+   * Constructor to create instance from file
+   *
+   * @param file File name
+   * @param defaultPath Default path for all views. 
+   *                    If empty string, will use global setting
+   * @param maxBufferLen Change max Buffer Len. If 0 will use global setting
+   */
   Silicon(const char* file, const char* defaultPath, long maxBufferLen);
+
+  /* Parsing and string building */
+
+  /**
+   * Parses template data
+   *
+   * @param destination Destination string
+   * @param strptr Pointer to data source
+   * @param write Whether to write parsed contents to destination or not
+   * @param nested When we are parsing a function or condition. It's a nested case
+   * @param level Nesting level we are parsing now
+   *
+   * @return Data read from strptr
+   */
   long parse(std::string& destination, char* strptr, bool write=true, std::string nested="", int level=0);
+
+  /**
+   * Parse keyword {{keyword}}
+   *
+   * @param strptr Pointer to data source
+   * @param keyword Returns the keyword we've parsed
+   *
+   * @return Data read from strptr (0 if not a keyword and nothing parsed)
+   */
   long parseKeyword(char* strptr, std::string& keyword);
+
+  /**
+   * Parse function {{!function}} or {{%function}}
+   *
+   * @param strptr Pointer to data source
+   * @param type   Function type (0 - User function, 1 - Builtin method
+   * @param fname  Returns function name we've parsed
+   * @param arguments Returns arguments extracted
+   * @param autoClosed Returns whether the function is autoClosed or not.
+   *                   If not autoClosed, will parse data inside the function
+   *
+   * @return Data read from strptr (0 if not a function and nothing parsed)
+   */
   long parseFunction(char* strptr, int &type, std::string& fname, StringMap &arguments, bool &autoClosed);
+
+  /**
+   * Parse closing tag {/clostag}}
+   *
+   * @param strptr Pointer to data source
+   * @param closeName Name of tag to close
+   *
+   * @return Data read from strptr ((0 if not a closing tag and nothing parsed)
+   */
   long parseCloseNested(char* strptr, std::string closeName);
 
-  long getNumericArgument(StringMap &args, std::string argument, long defaultVal=0, bool required=false);
+  /**
+   * Return keyword or leave it like this, depending on configuration
+   *
+   * @param keyword Keyword to put
+   *
+   * @return Contents of the keyword
+   */
   std::string putKeyword(std::string keyword);
 
+  /* Helpers */
+
+  /**
+   * We'd want to get a numeric argument as a number. But it may have
+   * errors, or it may not exist, so we make a secure method
+   *
+   * @param args Arguments map
+   * @param argument Numeric argument we are asking for
+   * @param defaultVal Default value as long
+   * @param required Don't return defaultVal, throw an exception
+   *
+   * @return Numeric value
+   */
+  long getNumericArgument(StringMap &args, std::string argument, long defaultVal=0, bool required=false);
+
+  /**
+   * Compute internal builtin function
+   *
+   * @param strptr Pointer to data source
+   * @param destination Destination string
+   * @param bif Built-In Function
+   * @param arguments Arguments for builtin function
+   * @param autoClosed Is it autoClosed?
+   * @param write whether to write on destination or not
+   * @param level Nesting level (for debugging or limiting)
+   *
+   * @return Data read from strptr (0 if nothing read)
+   */
   long computeBuiltin(char* strptr, std::string &destination, std::string bif, StringMap &arguments, bool &autoClosed, bool write, int level);
+
+  /**
+   * Compute conditionals (internal builtin function if)
+   *
+   * @param strptr Pointer to data source
+   * @param destination Destination string
+   * @param arguments Arguments for builtin function
+   * @param write whether to write on destination or not
+   * @param level Nesting level (for debugging or limiting)
+   *
+   * @return Data read from strptr (0 if nothing read)
+   */
   long computeBuiltinIf(char* strptr, std::string &destination, StringMap &arguments, bool write, int level);
+
+  /**
+   * Compute loops in collections (builtin function collection)
+   *
+   * @param strptr Pointer to data source
+   * @param destination Destination string
+   * @param arguments Arguments for builtin function
+   * @param write whether to write on destination or not
+   * @param level Nesting level (for debugging or limiting)
+   *
+   * @return Data read from strptr (0 if nothing read)
+   */
   long computeBuiltinCollection(char* strptr, std::string &destination, StringMap &arguments, bool write, int level);
 
+  /**
+   * Looks for function. First in local functions, then in global functions
+   *
+   * @param fun Function name
+   *
+   * @return function
+   */
   TemplateFunction getFunction(std::string fun);
 
+  /**
+   * Evaluate boolean condition
+   *
+   * @param condition condition as string
+   *
+   * @return is it true or false?
+   */
   bool evaluateCondition(std::string condition);
 
-  /* Operators' stuff */
-  bool conditionStringOperator(std::string op, std::string a, std::string b);
-  bool conditionDoubleOperator(std::string op, long double a, long double b);
-  bool conditionLongOperator(std::string op, long long a, long long b);
-
-  long getCurrentLine();
-  long getCurrentPos();
-
+  /**
+   * Separate arguments will reorder keys and values when
+   * arguments have equal sign.
+   *
+   * @param arguments Original arguments
+   *
+   * @return New StringMap with right arguments
+   */
   StringMap separateArguments(StringMap &arguments);
 
+  /* Operators' stuff */
+
+  /**
+   * Perform special boolean operations on strings
+   *
+   * @param op Operation (must be declared in @see localConditionStringOperators)
+   * @param a  First element to compare
+   * @param b  Second element to compare
+   *
+   * @param result
+   */
+  bool conditionStringOperator(std::string op, std::string a, std::string b);
+
+  /**
+   * Perform special boolean operations on long
+   *
+   * @param op Operation (must be declared in @see localConditionLongOperators)
+   * @param a  First element to compare
+   * @param b  Second element to compare
+   *
+   * @param result
+   */
+  bool conditionDoubleOperator(std::string op, long double a, long double b);
+
+  /**
+   * Perform special boolean operations on doubles
+   *
+   * @param op Operation (must be declared in @see localConditionDoubleOperators)
+   * @param a  First element to compare
+   * @param b  Second element to compare
+   *
+   * @param result
+   */
+  bool conditionLongOperator(std::string op, long long a, long long b);
+
+  /**
+   * Gets current line
+   *
+   * @return current line when parsing
+   */
+  long getCurrentLine();
+
+  /**
+   * Gets current position
+   *
+   * @return current character when parsing
+   */
+  long getCurrentPos();
+
   /* Default global functions */
+
+  /**
+   * Function date. Accepts options:
+   *     "format"="xxxxxx" where xxxxxx is a string with special keywords
+   *                       to specify the format, as put_time or strftime
+   *
+   * @param s Silicon instance
+   * @param options Options for function
+   *
+   * @return return string
+   */
   std::string globalFuncDate(Silicon* s, StringMap options);
+
+  /**
+   * Function block. Gets contents of a block template
+   *
+   * @param s Silicon instance
+   * @param options Options for function
+   *
+   * @return return string
+   */
   std::string globalFuncBlock(Silicon* s, StringMap options);
+
 private:
-  /* std::string _data;			/\* Template string *\/ */
   char* _data = NULL;
 
   struct
