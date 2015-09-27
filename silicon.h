@@ -652,6 +652,30 @@ protected:
    */
   std::string globalFuncBlock(Silicon* s, StringMap options);
 
+  /**
+   * Sets the value of a variable (here, keyword)
+   *
+   * @param s Silicon instance
+   * @param options Options for function (keyword=value, keyword2=value2, and so)
+   *
+   * @return Empty string
+   */
+  std::string globalFuncSet(Silicon* s, StringMap options);
+
+  /**
+   * Increment the value of a variable
+   *
+   * @param s Silicon instance
+   * @param options Options for function (variable="discarded", variable2="discarded", and so)
+   *                Just get the keys, all values are discarded
+   *
+   * @note If keyword does not exist, creates one with value 1
+   * @note If keyword is not numeric, replaces it with 1
+   * @return Empty string
+   */
+  std::string globalFuncInc(Silicon* s, StringMap options);
+
+
 private:
   char* _data = NULL;
 

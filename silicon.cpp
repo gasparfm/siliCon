@@ -349,6 +349,8 @@ void Silicon::configure()
 				 });
       Silicon::setGlobalFunction("date", std::bind(&Silicon::globalFuncDate, this, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("block", std::bind(&Silicon::globalFuncBlock, this, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("set", std::bind(&Silicon::globalFuncSet, this, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("inc", std::bind(&Silicon::globalFuncInc, this, std::placeholders::_1, std::placeholders::_2));
       configuredGlobals.functions = true;
     }
 
@@ -383,6 +385,37 @@ std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options)
   free(blockData);
 
   return res;
+}
+
+std::string Silicon::globalFuncSet(Silicon* s, Silicon::StringMap options)
+{
+  for (auto o : options)
+    {
+      s->setKeyword(o.first, o.second);
+    }
+
+  return "";
+}
+
+std::string Silicon::globalFuncInc(Silicon* s, Silicon::StringMap options)
+{
+  for (auto o : options)
+    {
+      std::string content;
+      /* Known bug, if keyword is global, it's not incremented */
+      if (s->getKeyword(o.second, content))
+	{
+	  if ( (content.empty()) || (!std::all_of(content.begin(), content.end(), ::isdigit)) )
+	    s->setKeyword(o.second, "1");
+	  else
+	    s->setKeyword(o.second, std::to_string(std::stoi(content)+1));
+
+	}
+      else
+	s->setKeyword(o.second, "1");
+    }
+
+  return "";
 }
 
 void Silicon::addCollection(std::string kw, std::vector<Silicon::StringMap> coll)
@@ -833,15 +866,21 @@ bool Silicon::evaluateCondition(std::string condition)
   if (op == std::string::npos)
     {				/* No operator*/
       /* Numeric statement */
-      if (std::all_of(condition.begin(), condition.end(), ::isdigit))
+      if (condition.empty())
+	throw SiliconException(26, "Empty condion", getCurrentLine(), getCurrentPos());
+      else if (std::all_of(condition.begin(), condition.end(), ::isdigit))
 	return (std::stoi(condition));
       else
 	{
 	  std::string kw = getKeyword(condition);
-	  if (std::all_of(kw.begin(), kw.end(), ::isdigit))
+	  if (kw.empty())
+	    return 0;
+	  else if (std::all_of(kw.begin(), kw.end(), ::isdigit))
 	    return (std::stoi(kw));
 
-	  return (!kw.empty());
+	  return 1; /* (!kw.empty()); - As all_of returns true when the string is empty,
+		       if we are here, the keyword exists and it's not empty.
+		     */
 	}
     }
   else
