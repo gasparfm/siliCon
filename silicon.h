@@ -40,8 +40,12 @@ class SiliconException : public std::exception
    * @param line
    * @param pos Character in line
    */
- SiliconException(const int& code, const std::string &message, long line, long pos): _code(code), _message(message), _line(line), _pos(pos)
+ SiliconException(const int& code, const std::string &message, long line, long pos): _code(code), _line(line), _pos(pos)
   {
+    _message = "Error "+std::to_string(_code)+": "+message;
+    #if SILICON_DEBUG
+    _message+=" on line "+std::to_string(_line)+":"+std::to_string(_pos);
+    #endif
   }
 
   virtual ~SiliconException() throw ()
@@ -53,12 +57,7 @@ class SiliconException : public std::exception
    */
   const char* what() const throw()
   {
-    std::string msg;
-    msg="Error "+std::to_string(_code)+": "+_message;
-    #if SILICON_DEBUG
-    msg+=" on line "+std::to_string(_line)+":"+std::to_string(_pos);
-    #endif
-    return msg.c_str();
+    return _message.c_str();
   }
 
   /**
@@ -675,6 +674,16 @@ protected:
    */
   std::string globalFuncInc(Silicon* s, StringMap options);
 
+  /**
+   * Gets current directory. No arguments, if you put sth. will
+   * be ignored
+   *
+   * @param s Silicon instance
+   * @param options Options for function
+   *
+   * @return return string
+   */
+  std::string globalFuncPwd(Silicon* s, StringMap options);
 
 private:
   char* _data = NULL;

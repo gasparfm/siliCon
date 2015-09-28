@@ -1,0 +1,171 @@
+{%if Section0}}
+<h2>What we can do?</h2>
+<ul>
+    <li>Use templates as output for programs in C++11</li>
+    <li>Templates may use keywords, collections and functions</li>
+    <li>Use layouts as main template containing another templates. 
+	Just like a web page has a base design and a particular view
+	for each page inside.</li>
+    <li>Global keyword/function definitions to use it in all instances.</li>
+    <li>No library requirements</li>
+    <li>You can use it wherever you want. MIT licensed.</li>
+</ul>
+{!inc seccion/}
+{/if}}
+{%if Section1}}
+<h2>Keywords</h2>
+<p>Keywords are tags like <strong>{{</strong>word<strong>}}</strong> where
+    <i>word</i> is a special token we choose and which will be replaced with
+    a variable, or text we specify in our C++ code.</p>
+<p>Silicon has also some pre-defined keywords as:</p>
+<ul>
+    <li>SiliconVersion : This library version. (e.g: {{SiliconVersion}})</li>
+    <li>DS : Current directory separator. (e.g: {{DS}})</li>
+</ul>
+<p>From C++ you can define keywords by calling:</p>
+<ul> 
+    <li>setKeyword(string keyword, string value) : for local keywords (only this instance)</li>
+    <li>Silicon::setGlobalKeyword(string keyword, string value) : for global keywords</li>
+</ul>
+{!inc seccion/}
+{/if}}
+{%if Section2}}
+<h2>Functions</h2>
+<p>Functions are tags like <strong>\{!</strong>word<strong>/}</strong> where
+    <i>word</i> is a special token we choose and which will be replaced with
+    a variable, or text we specify in our C++ code.</p>
+<p>Functions <strong>must</strong> be closed, so they can contain nested data
+    with text, keywords, functions, an so on. We have normal and auto-closed
+    function tags:</p>
+<ul>
+    <li>Normal: \{!functionName}}Data...text, and whatever\{/functionName}}</li>
+    <li>Auto-closed: \{!functionName/} (auto-closed have no data at all.</li>
+</ul>
+<p>Functions may also have arguments as pairs of keys=values to modify their
+    behaviour, like this:</p>
+<p>\{!functionName argument1=value1 argument2=value2.../}</p>
+or even like this:
+<p>\{!functionName argument1=value1 argument2=value2...}}
+Data, tags, text, functions, and so...
+    \{/functionName}}</p>
+<p>Functions can be used when declaring keywords that now always will be shown
+    and require some time to compute.</p>
+<p>Silicon also have some pre-defined functions{%if Section6}}(for detailed information, see below{/if}}:</p>
+<ul>
+    <li>SiliconTotalKeywords : Gets total keywords at this moment. (e.g: {!SiliconTotalKeywords/})</li>
+    <li>date : Gets the date. (e.g: {!date/})</li>
+    <li>pwd : Gets current directory. (e.g: {!pwd/})</li>
+    <li>block : inserts a new block from file</li>
+    <li>set : sets a value for one or more keywords</li>
+    <li>inc : increment the value of one or more keywords</li>
+</ul>
+<p>From C++ you can define functions by calling:</p>
+<ul>
+    <li>setFunction(string functionName, TemplateFunction function) : for local functions</li>
+    <li>Silicon::setGlobalFunction(string functionName, TemplateFunction function) : for global functions</li>
+</ul>
+<p>These functions must have this prototype:</p>
+<p>   string myfunction(Silicon* s, Silicon::StringMap options)</p>
+<p>where StringMap is just a map&lt;string, string>, containing keys and values for
+    all function arguments: key1=value1, key2=value2, and so.</p>
+<p>Your function must return the string being concatenated to the template.</p>
+{!inc seccion/}
+{/if}}
+{%if Section3}}
+<h2>Collections</h2>
+<p>Collections are special keywords storing a number of key-value pairs. In C++, they are represented by
+vector of maps, so we can iterate over the vector (rows) and get column-value pairs inside. </p>
+<p>In this version, collections are accessed only by calling \{%collection}} </p>
+<p>In C++, collections can be included using:</p>
+<ul>
+    <li>addCollection(string name, vector&lt;map&lt;string, string>> v) : to input a whole vector</li>
+    <li>addToCollection(string name, StringMap m) : To append a map to the collection</li>
+    <li>long addToCollection(string name, long pos, string key, string value) : To insert one key, and one value to the position pos, of collection name</li>
+</ul>
+{!inc seccion/}
+{/if}}
+{%if Section4}}
+<h2>Special builtin-function</h2>
+<p>These are functions that work in a special way. These function are used to flow-control
+    whatever it is in our templates, like loops or conditions. These functions start with
+    \{%bif arg1 arg2...}}data...\{/bif}}</p>
+<p>Available special builtin-functions are: </p>
+<ul>
+    <li>\{%if condition}}DATA\{/if}} : This will compute DATA only if <em>condition</em> is true.
+    A condition can be:
+	<ul>
+	    <li>a keyword: true if keyword exists and it's not empty and not "0"</li>
+	    <li>keyword[operator]"value" : will test keyword's value and "value" against
+		operator. e.g.: myKeyword==32. Available operators are <, >, != (or <>), <=, >=, == (or =),
+		but you can even create comparators in C++11 and use them here.</li>
+	</ul>
+    </li>
+    <li>\{%collection var="collectionvar" [loops=X]}}DATA\{/collection}} : This will iterate over a collection (collectionvar)
+	of elements and parse data as many times as loops are done. Loops can be a number, but if not specified,
+	loops all collection elements. Inside a loop, some variables are created and updated:
+	<ul>
+	    <li>collectionvar._totalLines : total elements in collection</li>
+	    <li>collectionvar._totalIterations : number of iterations (loops)</li>
+	    <li>collectionvar._last : 1 if it's the last iteration, 0 otherwise</li>
+	    <li>collectionvar._even : 1 if it's an even iteration (iterations start from 0)</li>
+	    <li>collectionvar._lineNumber : current line number</li>
+	</ul>
+	All other variables inside the collection may be accesed via: collectionvar.variable keyword
+    </li>
+</ul>
+{!inc seccion/}
+{/if}}
+{%if Section5}}
+<h2>Examples</h2>
+<p>For a little practise, let's do:</p>
+<pre>
+#include <iostream>
+#include <string>
+#include "silicon.h"
+
+using namespace std;
+
+string includeCss (Silicon* s, Silicon::StringMap args, std::string input)
+{
+  auto file=args.find("file");
+  if (file==args.end())
+    return "";
+
+  return "<link href=\""+file->second+"\" rel=\"stylesheet\" type=\"text/css\">";
+}
+
+int main(int argc, char* argv[])
+{
+  int sections[6] = {1, 0, 1, 1, 1, 1};z
+  for (int i=1; i<argc; ++i)
+    {
+      if (i>6)
+	break;
+      sections[i-1] = (atoi(argv[i])!=0);
+    }
+
+  Silicon::setGlobalKeyword("ProjectTitle", "Silicon Example");
+  Silicon::setGlobalKeyword("Author", "Gaspar Fernández");
+  Silicon::setGlobalKeyword("AuthorEmail", "gaspar.fernandez@totaki.com");
+  Silicon t = Silicon::createFromFile("sample1.html", "views/");
+
+  t.setLayout("sample_layout.html");
+  t.setKeyword("PageTitle", "Main");
+  for (int i=0; i<6; ++i)
+    t.setKeyword("Section"+to_string(i), to_string(sections[i]));
+  t.setFunction("includeCss", includeCss);
+
+  try
+    {
+      cout << t.render()<<std::endl;
+    }
+  catch (SiliconException &e)
+    {
+      cout << "Exception!!! "<<e.what() << std::endl;
+    }
+}
+</pre>
+{!inc seccion/}
+{/if}}
+
+{%if !seccion}}You chose not to show any section{/if}}

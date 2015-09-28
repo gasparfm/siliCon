@@ -25,8 +25,7 @@
 *   - complete if function. Logic operations with conditions
 *   - builtins: for, while
 *   - line/position isn't correct when using template/layout/blocks
-*   - function to increment or change variable or keyword values (important)
-*   - function to add stuff to collections
+*   - getKeyword could look inside collections too using {{collection[X].element}}
 *
 *************************************************************/
 
@@ -39,6 +38,7 @@
 #include <stdexcept>
 #include <fstream>
 #include <ctime>
+#include <unistd.h>
 
 #define SILICONVERSION "0.2"
 #define DIRECTORY_SEPARATOR '/'
@@ -337,6 +337,9 @@ void Silicon::configure()
   if (!configuredGlobals.keywords)
     {				/* Just once, when first template is instanced */
       Silicon::setGlobalKeyword("SiliconVersion", SILICONVERSION);
+      std::string ds;
+      ds+=DIRECTORY_SEPARATOR;
+      Silicon::setGlobalKeyword("DS", ds);
       configuredGlobals.keywords = true;
     }
 
@@ -351,6 +354,7 @@ void Silicon::configure()
       Silicon::setGlobalFunction("block", std::bind(&Silicon::globalFuncBlock, this, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("set", std::bind(&Silicon::globalFuncSet, this, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("inc", std::bind(&Silicon::globalFuncInc, this, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("pwd", std::bind(&Silicon::globalFuncPwd, this, std::placeholders::_1, std::placeholders::_2));
       configuredGlobals.functions = true;
     }
 
@@ -359,6 +363,15 @@ void Silicon::configure()
       /* Conditions globals */
       configuredGlobals.conditions = true;
     }
+}
+
+std::string Silicon::globalFuncPwd(Silicon* s, Silicon::StringMap options)
+{
+  std::string pwd(1024,'\0');
+  if (getcwd(&pwd[0], pwd.size()) != NULL)
+    return pwd;
+  else
+    return "";
 }
 
 std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
@@ -391,7 +404,22 @@ std::string Silicon::globalFuncSet(Silicon* s, Silicon::StringMap options)
 {
   for (auto o : options)
     {
-      s->setKeyword(o.first, o.second);
+      bool exists = false;
+      auto index = s->localKeywords.find(o.second);
+
+      if (index == s->localKeywords.end())
+	{
+	  index = Silicon::globalKeywords.find(o.second);
+	  if (index != Silicon::globalKeywords.end() )
+	    exists = true;
+	}
+      else
+	exists = true;
+
+      if (exists)
+	index->second = o.second;
+      else
+	s->setKeyword(o.first, o.second);
     }
 
   return "";
@@ -402,14 +430,24 @@ std::string Silicon::globalFuncInc(Silicon* s, Silicon::StringMap options)
   for (auto o : options)
     {
       std::string content;
-      /* Known bug, if keyword is global, it's not incremented */
-      if (s->getKeyword(o.second, content))
+      bool exists = false;
+      auto index = s->localKeywords.find(o.second);
+      /* Search keyword in local, then global */
+      if (index == s->localKeywords.end())
 	{
+	  index = Silicon::globalKeywords.find(o.second);
+	  if (index != Silicon::globalKeywords.end() )
+	    exists = true;
+	}
+      else
+	exists = true;
+      if (exists)
+	{
+	  std::string content = index->second;
 	  if ( (content.empty()) || (!std::all_of(content.begin(), content.end(), ::isdigit)) )
 	    s->setKeyword(o.second, "1");
 	  else
 	    s->setKeyword(o.second, std::to_string(std::stoi(content)+1));
-
 	}
       else
 	s->setKeyword(o.second, "1");
@@ -507,7 +545,23 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 
   while ( (*strptr!='\0') && (!end) )
     {
-      if (*strptr == '{')	// } : put this symbol to make member functions work
+      if (*strptr == '\\')	/* Escape! */
+	{
+	  std::string concat;
+	  if (strptr[1] == '\\')
+	    concat='\\';	/* Two \ found in text results 1 */
+	  else if (strptr[1] == '{')
+	    concat='{';
+	  else if (write)
+	    destination+='\\';	/* adds character to destination */
+	  if (!concat.empty())
+	    {
+	      if (write)
+		destination+=concat;
+	      ahead(&strptr);	/* read one more char*/
+	    }
+	}
+      else if (*strptr == '{')	// } : put this symbol to make member functions work
 	{
 	  if ( (moved=parseKeyword(strptr, temp)) >0 )
 	    {
@@ -535,7 +589,6 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 		  if (write)
 		    {
 		      auto f = getFunction(temp);
-
 		      destination+=f(this, tempArgs, tempData);
 		    }
 		}
@@ -556,7 +609,8 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	    }
 	  else
 	    {
-	      destination+='{';	/* Put this in the resulting string*/
+	      if (write)
+		destination+='{';	/* Put this in the resulting string*/
 	    }
 	  /* Maybe a keyword or sth. */
 	}
@@ -863,6 +917,14 @@ long Silicon::computeBuiltinIf(char* strptr, std::string &destination, Silicon::
 bool Silicon::evaluateCondition(std::string condition)
 {
   auto op = condition.find_first_of("!<>=");
+  bool invert = false;
+  if ( (op==0) && (condition[op]=='!') )
+    {
+      invert = true;		/* Negate */
+      condition = condition.substr(1);
+      op = condition.find_first_of("!<>=");
+    }
+
   if (op == std::string::npos)
     {				/* No operator*/
       /* Numeric statement */
@@ -874,13 +936,15 @@ bool Silicon::evaluateCondition(std::string condition)
 	{
 	  std::string kw = getKeyword(condition);
 	  if (kw.empty())
-	    return 0;
+	      return invert;	/* false if inversion is off, otherwise, true */
 	  else if (std::all_of(kw.begin(), kw.end(), ::isdigit))
-	    return (std::stoi(kw));
+	    return  ( (std::stoi(kw))!=0)^invert; /* if (stoi(kw))==true : !invert (true if not inverted)
+					       if (stoi(kw))==false: invert (false if not inverted) */
 
-	  return 1; /* (!kw.empty()); - As all_of returns true when the string is empty,
-		       if we are here, the keyword exists and it's not empty.
-		     */
+	  return (!invert); 
+	  /* old value 1; (!kw.empty()); - As all_of returns true when the string is empty,
+	     if we are here, the keyword exists and it's not empty.
+	  */
 	}
     }
   else
@@ -920,7 +984,7 @@ bool Silicon::evaluateCondition(std::string condition)
 
       bool res = opc->apply(_op);
       delete opc;
-      return res;
+      return res^invert;
     }
 
   return 0;

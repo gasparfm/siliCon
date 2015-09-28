@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{PageTitle}} - {{ProjectTitle}}</title>
+    <meta name="author" content="{{Author}}">
+    {!includeCss file="layout.css"/}
+  </head>
+
+  <body>
+    <div id="header">
+        {!block template="sample_header.html"/}
+    </div>
+    <div id="content">
+    {{contents}}
+    </div>
+    <div id="footer">
+    <address>
+      <a href="mailto:{{AuthorEmail}}">{{Author}}</a>,
+    </address>
+    <p>Generated on {!date format="%Y-%m-%d %H:%M:%S"/}</p>
+    </div>
+    </address>
+  </body>
+</html>
