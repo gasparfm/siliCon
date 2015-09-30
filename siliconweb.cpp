@@ -41,7 +41,7 @@ std::string SiliconWeb::includeCss (Silicon* s, Silicon::StringMap args, std::st
     return "";
 
   auto media=args.find("media");
-  out= "<link href=\""+getBaseUrl(s)+file->second+"\" rel=\"stylesheet\" type=\"text/css\"";
+  out= "<link href=\""+getCssUrl(s)+file->second+"\" rel=\"stylesheet\" type=\"text/css\"";
   if (media!=args.end())
     out+=" media=\""+media->second+"\">";
 
@@ -61,4 +61,13 @@ std::string SiliconWeb::getCssUrl(Silicon * s)
   bool haveCssUrl = s->getKeyword("_cssURL", cssURL);
   if (!haveCssUrl)
     cssURL = cssUrl();
+
+  std::string basePath = getBaseUrl(s);
+  if ( (basePath.empty()) && (cssURL.empty()) )
+    return "";
+
+  if (cssURL.begin()=='/')
+    cssURL.substr(1);
+
+  return addSlesh(basePath+cssURL);
 }
