@@ -13,6 +13,13 @@
 *
 * Changelog:
 *   20150925 : Launched version 0.2
+*   20151001 : Bugs fixed:
+*                 - Unterminated strings when putting dates and paths
+*                 - Renders lots of returns when using many keywords 
+*                   or functions
+*              Getter for collection
+*              New builtin: iffun (returns whether a function exists or not
+*              Function parse() for simple operations over text
 *
 * To-do:
 *   - More default keywords / conditions / functions
@@ -241,9 +248,12 @@ namespace
     static std::string put_time( const std::tm* tmb, const char* fmt )
     {
       std::string s( 128, '\0' );
-      while( !strftime( &s[0], s.size(), fmt, tmb ) )
+      size_t written;
+      while( !(written=strftime( &s[0], s.size(), fmt, tmb ) ) )
   	s.resize( s.size() + 128 );
-      return s;
+      s[written] = '\0';
+
+      return s.c_str();
     }
   }
 #endif
@@ -355,6 +365,7 @@ void Silicon::configure()
       Silicon::setGlobalFunction("set", std::bind(&Silicon::globalFuncSet, this, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("inc", std::bind(&Silicon::globalFuncInc, this, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("pwd", std::bind(&Silicon::globalFuncPwd, this, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("insert", std::bind(&Silicon::globalFuncInsert, this, std::placeholders::_1, std::placeholders::_2));
       configuredGlobals.functions = true;
     }
 
@@ -365,11 +376,29 @@ void Silicon::configure()
     }
 }
 
+std::string Silicon::globalFuncInsert(Silicon* s, Silicon::StringMap options)
+{
+  auto _colname = options.find("0");
+  if (_colname == options.end())
+    throw SiliconException(26, "Collection to insert to isn't specified", getCurrentLine(), getCurrentPos());
+
+  std::string colname = _colname->second;
+
+  options.erase("0");
+  std::cout << "COL **"<<colname<<"**\n";
+  addToCollection(colname, options);
+  for (auto d : localCollections)
+    {
+      std::cout << "--"<< d.first << std::endl;
+    }
+  return "";
+}
+
 std::string Silicon::globalFuncPwd(Silicon* s, Silicon::StringMap options)
 {
   std::string pwd(1024,'\0');
   if (getcwd(&pwd[0], pwd.size()) != NULL)
-    return pwd;
+    return pwd.c_str();
   else
     return "";
 }
@@ -382,6 +411,7 @@ std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
   localtime_r( &now, &tm );
 
   std::string format = ( fmt !=options.end())?fmt->second:"%Y%m%d";
+  return std::put_time(&tm, "%d/%m/%Y");
   return std::put_time(&tm, format.c_str());
 }
 
@@ -394,7 +424,7 @@ std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options)
   char *blockData;
   std::string res;
   this->extractFile(&blockData, tplt->second);
-  this->parse(res, blockData);
+  this->_parse(res, blockData);
   free(blockData);
 
   return res;
@@ -461,6 +491,12 @@ void Silicon::addCollection(std::string kw, std::vector<Silicon::StringMap> coll
   localCollections[kw] = coll;
 }
 
+std::vector<Silicon::StringMap> Silicon::getCollection(std::string kw)
+{
+  auto res = localCollections.find(kw);
+  return (res==localCollections.end())?std::vector<StringMap>():res->second;
+}
+
 void Silicon::addToCollection(std::string kw, StringMap content)
 {
   auto el = localCollections.find(kw);
@@ -516,13 +552,13 @@ std::string Silicon::render(bool useLayout)
 {
   std::string tplt;
   resetStats();
-  parse(tplt, this->_data);
+  _parse(tplt, this->_data);
   if ((Silicon::layoutData==NULL) || (!useLayout) )
     return tplt;
 
   setKeyword(Silicon::contentsKeyword, tplt);
   tplt.clear();
-  parse(tplt, Silicon::layoutData);
+  _parse(tplt, Silicon::layoutData);
   return tplt;
 }
 
@@ -532,7 +568,14 @@ Silicon::Silicon(Silicon && sil)
   sil._data=NULL;
 }
 
-long Silicon::parse(std :: string & destination, char * strptr, bool write, std::string nested, int level)
+std::string Silicon::parse(std::string templ)
+{
+  std::string out;
+  _parse(out, (char*)templ.c_str(), true, "", 0);
+  return out;
+}
+
+long Silicon::_parse(std :: string & destination, char * strptr, bool write, std::string nested, int level)
 {
   bool end = false;
   std::string temp;
@@ -542,6 +585,11 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
   long moved;
   bool autoClosed;
   int type;
+  bool special = false;		/* We have just performed a special action (keyword/function/...} */
+
+  if (!nested.empty())		/* Eat extra returns in the beginning of the nested body */
+    while (*strptr=='\n')
+      ahead(&strptr); 
 
   while ( (*strptr!='\0') && (!end) )
     {
@@ -568,6 +616,7 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	      if (write)
 		destination+=putKeyword(temp);
 	      strptr+=moved;
+	      special = true;
 	    }
 	  else if ( (moved=parseFunction(strptr, type, temp, tempArgs, autoClosed)) >0 )
 	    {
@@ -583,7 +632,7 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 		  if (!autoClosed)
 		    {
 		      ahead(&strptr);
-		      moved = parse(tempData, strptr, write, temp, level+1);
+		      moved = _parse(tempData, strptr, write, temp, level+1);
 		      strptr+=moved;
 		    }
 		  if (write)
@@ -601,11 +650,13 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 		}
 	      else
 		throw SiliconException(9, "Not implemented function type "+std::to_string(type)+" for function "+temp+".", getCurrentLine(), getCurrentPos());
+	      special = true;
 	    }
 	  else if ( (!nested.empty()) && ( (moved=parseCloseNested(strptr, nested)) >0) )
 	    {
 	      strptr+=moved;
 	      return strptr-current+1;
+	      special = true;
 	    }
 	  else
 	    {
@@ -614,9 +665,15 @@ long Silicon::parse(std :: string & destination, char * strptr, bool write, std:
 	    }
 	  /* Maybe a keyword or sth. */
 	}
+      else if ( (*strptr == '\n') && (special) )
+	{
+	  /* Eat the \n !! */
+	}
       else if (write)
-	destination+=*strptr;
-
+	{
+	  destination+=*strptr;
+	  special = false;
+	}
       ahead(&strptr);
     }
 
@@ -785,6 +842,8 @@ long Silicon::computeBuiltin(char* strptr, std::string &destination, std::string
     return computeBuiltinIf(strptr, destination, arguments, write, level);
   else if (bif == "collection")
     return computeBuiltinCollection(strptr, destination, arguments, write, level);
+  else if (bif == "iffun")
+    return computeBuiltinIffun(strptr, destination, arguments, write, level);
   else
     throw SiliconException(11, "Builtin function "+bif+" not implemented", getCurrentLine(), getCurrentPos());
 
@@ -883,7 +942,7 @@ long Silicon::computeBuiltinCollection(char* strptr, std::string &destination, S
       if (line>0)
 	stopStatsUpdate();
 
-      n = parse(destination, strptr, write, "collection", level+1);
+      n = _parse(destination, strptr, write, "collection", level+1);
 
       ++line;
     }
@@ -911,7 +970,36 @@ long Silicon::computeBuiltinIf(char* strptr, std::string &destination, Silicon::
 	}
     }
   ahead(&strptr);
-  return parse(destination, strptr, logicResult, "if", level+1);
+  return _parse(destination, strptr, logicResult, "if", level+1);
+}
+
+long Silicon::computeBuiltinIffun(char* strptr, std::string &destination, Silicon::StringMap &arguments, bool write, int level)
+{
+  bool logicResult=false;
+  if (write)
+    {
+      /* Analize more arguments, do more things... later */
+      for (auto x : arguments)
+	{
+	  auto isfun = localFunctions.find(x.second);
+	  if (isfun != localFunctions.end())
+	    {
+	      logicResult=true;
+	      continue;
+	    }
+	  else
+	    {
+	      isfun = globalFunctions.find(x.second);
+	      if (isfun != globalFunctions.end())
+		{
+		  logicResult=true;
+		  continue;
+		}
+	    }
+	}
+    }
+  ahead(&strptr);
+  return _parse(destination, strptr, logicResult, "iffun", level+1);
 }
 
 bool Silicon::evaluateCondition(std::string condition)

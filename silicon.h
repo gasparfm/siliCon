@@ -326,6 +326,15 @@ public:
   void addCollection(std::string kw, std::vector<StringMap> coll);
 
   /**
+   * Gets entire collection.
+   * 
+   * @param kw Keyword
+   *
+   * @return Collection. empty collection if not found
+   */
+  std::vector<StringMap> getCollection(std::string kw);
+
+  /**
    * Adds map to collection, as one element of collection vector.
    * If the collection doesn't exist, creates new one
    *
@@ -415,6 +424,10 @@ public:
    */
   void setGlobalOperator(std::string name, DoubleOperator func);
 
+  /**
+   * Simple parse for fast templates. Caution with this!
+   */
+  std::string parse(std::string templ);
 protected:
   /* Protected methods. Constructor */
 
@@ -449,7 +462,7 @@ protected:
    *
    * @return Data read from strptr
    */
-  long parse(std::string& destination, char* strptr, bool write=true, std::string nested="", int level=0);
+  long _parse(std::string& destination, char* strptr, bool write=true, std::string nested="", int level=0);
 
   /**
    * Parse keyword {{keyword}}
@@ -536,6 +549,19 @@ protected:
    * @return Data read from strptr (0 if nothing read)
    */
   long computeBuiltinIf(char* strptr, std::string &destination, StringMap &arguments, bool write, int level);
+
+  /**
+   * Checks if function exists. Parses data if exists
+   *
+   * @param strptr Pointer to data source
+   * @param destination Destination string
+   * @param arguments Arguments for builtin function
+   * @param write whether to write on destination or not
+   * @param level Nesting level (for debugging or limiting)
+   *
+   * @return Data read from strptr (0 if nothing read)
+   */
+  long computeBuiltinIffun(char* strptr, std::string &destination, StringMap &arguments, bool write, int level);
 
   /**
    * Compute loops in collections (builtin function collection)
@@ -684,6 +710,18 @@ protected:
    * @return return string
    */
   std::string globalFuncPwd(Silicon* s, StringMap options);
+
+  /**
+   * Function insert. Insert elements into collection.
+   *     Then first option is the collection name, then
+   *     "key"="value" as much as you want
+   *
+   * @param s Silicon instance
+   * @param options Options for function
+   *
+   * @return return string
+   */
+  std::string globalFuncInsert(Silicon* s, StringMap options);
 
 private:
   char* _data = NULL;

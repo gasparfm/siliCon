@@ -4,6 +4,9 @@
     <title>{{PageTitle}} - {{ProjectTitle}}</title>
     <meta name="author" content="{{Author}}">
     {!includeCss file="layout.css"/}
+    {%iffun renderCss}}
+    {!renderCss comments=1/}
+    {/iffun}}
   </head>
 
   <body>
@@ -20,5 +23,8 @@
     <p>Generated on {!date format="%Y-%m-%d %H:%M:%S"/}</p>
     </div>
     </address>
+    {%iffun renderJs}}
+    {!renderJs comments=1/}
+    {/iffun}}
   </body>
 </html>

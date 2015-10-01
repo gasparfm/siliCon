@@ -1,4 +1,17 @@
+{%if _siliconWeb}}
+{!set _renderResources=0/}
+{/if}}
+{%iffun includeJs}}
+{!includeJs file="myscript.js"/}
+{/iffun}}
 {%if Section0}}
+{!insert templates text=kaka link=pedo/}
+{%iffun list}}{!list collection=templates/}{/iffun}}
+{%iffun directJs}}
+{!directJs}}
+alert("Hello world!");
+{/directJs}}
+{/iffun}}
 <h2>What we can do?</h2>
 <ul>
     <li>Use templates as output for programs in C++11</li>
