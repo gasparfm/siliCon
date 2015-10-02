@@ -723,6 +723,18 @@ protected:
    */
   std::string globalFuncInsert(Silicon* s, StringMap options);
 
+  /**
+   * Gets value from string. This value could be a variable, expression, 
+   * or string. A string will always be between quotation.
+   *
+   * Only un-quotation implemented
+   *
+   * @param original Original string
+   *
+   * @return Result
+   */
+  std::string getArgValue(std::string original);
+
 private:
   char* _data = NULL;
 

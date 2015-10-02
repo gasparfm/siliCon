@@ -5,8 +5,6 @@
 {!includeJs file="myscript.js"/}
 {/iffun}}
 {%if Section0}}
-{!insert templates text=kaka link=pedo/}
-{%iffun list}}{!list collection=templates/}{/iffun}}
 {%iffun directJs}}
 {!directJs}}
 alert("Hello world!");
@@ -182,3 +180,13 @@ int main(int argc, char* argv[])
 {/if}}
 
 {%if !seccion}}You chose not to show any section{/if}}
+
+{%if _siliconWeb}}
+<h2>Sample list</h2>
+{!insert samplelist text="Element 1" link="#" /}
+{!insert samplelist text="Element 2" link="#"/}
+{!insert samplelist text="Element 3" link="javascript:void(0)"/}
+{!insert samplelist text="Element 4" link="http://localhost/"/}
+{!insert samplelist text="Element 5" link="http://totaki.com/" /}
+{%iffun list}}{!list collection=samplelist uselink=1 class="sampleclas" /}{/iffun}}
+{/if}}

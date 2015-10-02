@@ -20,6 +20,8 @@
 *              Getter for collection
 *              New builtin: iffun (returns whether a function exists or not
 *              Function parse() for simple operations over text
+*   20151002 : Bugs fixed. Collections in quotes are now replaced with
+*              the unquoted value.
 *
 * To-do:
 *   - More default keywords / conditions / functions
@@ -33,6 +35,9 @@
 *   - builtins: for, while
 *   - line/position isn't correct when using template/layout/blocks
 *   - getKeyword could look inside collections too using {{collection[X].element}}
+*   - getArgValue should parse easy expressions, and should know when to replace
+*     the value with a variable.
+*   - make getArgValue the rule to get the value of all arguments
 *
 *************************************************************/
 
@@ -385,12 +390,8 @@ std::string Silicon::globalFuncInsert(Silicon* s, Silicon::StringMap options)
   std::string colname = _colname->second;
 
   options.erase("0");
-  std::cout << "COL **"<<colname<<"**\n";
   addToCollection(colname, options);
-  for (auto d : localCollections)
-    {
-      std::cout << "--"<< d.first << std::endl;
-    }
+
   return "";
 }
 
@@ -903,9 +904,11 @@ long Silicon::computeBuiltinCollection(char* strptr, std::string &destination, S
   if (_var == arguments.end())
     throw SiliconException(21, "Collection not specified", getCurrentLine(), getCurrentPos());
 
-  auto coll = localCollections.find(_var->second);
+  std::string collectionVar = getArgValue(_var->second);
+
+  auto coll = localCollections.find(collectionVar);
   if (coll == localCollections.end())
-    throw SiliconException(22, "Collection "+_var->second+" not found", getCurrentLine(), getCurrentPos());
+    throw SiliconException(22, "Collection "+collectionVar+" not found", getCurrentLine(), getCurrentPos());
 
   long n = 0;
   long line = 0;
@@ -918,26 +921,26 @@ long Silicon::computeBuiltinCollection(char* strptr, std::string &destination, S
   /* if (_iterations == arguments.end()) */
   /*   iterations = totalLines; */
   ahead(&strptr);
-  this->setKeyword(_var->second+"._totalLines", std::to_string(totalLines));
-  this->setKeyword(_var->second+"._totalIterations", std::to_string(iterations));
+  this->setKeyword(collectionVar+"._totalLines", std::to_string(totalLines));
+  this->setKeyword(collectionVar+"._totalIterations", std::to_string(iterations));
 
   for (auto i : coll->second)
     {
       if (line == iterations)
 	break;
       else
-	this->setKeyword(_var->second+"._last", (line == iterations-1)?"1":"0");
+	this->setKeyword(collectionVar+"._last", (line == iterations-1)?"1":"0");
 
-      this->setKeyword(_var->second+"._even", (line%2==0)?"1":"0");
+      this->setKeyword(collectionVar+"._even", (line%2==0)?"1":"0");
 
-      this->setKeyword(_var->second+"._lineNumber", std::to_string(line));
+      this->setKeyword(collectionVar+"._lineNumber", std::to_string(line));
       for (auto z : i)
 	{
 	  /* Meter mas variables como el numero de linea,
 	     El total de lineas, si la linea es la última o no.
 	     Si la línea es par o impar
 	     Verificar que %if "0" funciona... */
-	  this->setKeyword(_var->second+"."+z.first, z.second);
+	  this->setKeyword(collectionVar+"."+z.first, z.second);
 	}
       if (line>0)
 	stopStatsUpdate();
@@ -1208,6 +1211,14 @@ bool Silicon::conditionLongOperator(std::string op, long long a, long long b)
     return f->second(this, a, b);
 
   throw SiliconException(16, "Invalid condition operator "+op+" for long", getCurrentLine(), getCurrentPos());
+}
+
+std::string Silicon::getArgValue(std::string original)
+{
+  if ( (original.front()=='"') && (original.back()=='"') && (original.size()>1) )
+    return original.substr(1, original.size()-2);
+
+  return original;
 }
 
 void Silicon::setOperator(std::string name, Silicon::StringOperator func)

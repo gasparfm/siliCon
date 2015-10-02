@@ -58,7 +58,7 @@ bool SiliconWeb::_renderDefault = true;
 
 void SiliconWeb::load(Silicon * s)
 {
-  Silicon::setGlobalKeyword("_siliconWeb", "1");
+  loadKeyword("_siliconWeb", "1", s);
 
   loadFunction("includeCss", SiliconWeb::includeCss, s);
   loadFunction("includeJs", SiliconWeb::includeJs, s);
@@ -73,11 +73,29 @@ std::string SiliconWeb::list (Silicon* s, Silicon::StringMap args, std::string i
   auto collection = args.find("collection");
   if (collection == args.end())
     return "";
+  auto tagclass = args.find("class");
+  auto tagid = args.find("id");
+  auto _uselink = args.find("uselink");
+  bool uselink = ( (_uselink != args.end()) && (_uselink->second!="0") );
+
   std::string col = collection->second;
 
-  std::string templ = "<ul>\n"
+  std::string templ = "<ul";
+  if (tagclass != args.end())
+    templ+=" class=\""+tagclass->second+"\"";
+
+  if (tagid != args.end())
+    templ+=" id=\""+tagid->second+"\"";
+
+  templ+=">\n"
     "{%collection var="+col+"}}\n"
-    "<li>"+col+".text</li>\n"
+    "<li>";
+  if (uselink)
+    templ+="<a href=\"{{"+col+".link}}\" {%if "+col+".title}} title=\"{{"+col+".title}}\">{/if}}>";
+  templ+="{{"+col+".text}}";
+  if (uselink)
+    templ+="</a>";
+  templ+="</li>\n"
     "{/collection}}\n"
     "</ul>";
   return s->parse(templ);
