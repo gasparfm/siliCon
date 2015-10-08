@@ -303,7 +303,7 @@ Silicon::Silicon(const char* file, const char* defaultPath, long maxBufferLen)
 {
   this->localConfig.maxBufferLen = maxBufferLen;
   this->localConfig.basePath = (defaultPath)?defaultPath:"";
-
+  std::cout << "BASEPATH: "<<this->localConfig.basePath<<std::endl;
   this->configure();
 
   this->extractFile(&this->_data, file);
@@ -311,6 +311,11 @@ Silicon::Silicon(const char* file, const char* defaultPath, long maxBufferLen)
 
 void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
 {
+  std::cout << " USEPATH: "<<usePath<<std::endl;
+  std::cout << " MAS: "<<this->localConfig.maxBufferLen<<std::endl;
+  std::cout << " READING: "<<filename<<std::endl;
+  std::cout << " BASE PATH: "<<this->localConfig.basePath<<std::endl;
+  std::cout << " USEPATH: "<<usePath<<std::endl;
   filename = fixPath(filename, this->localConfig.basePath, usePath);
 
   std::ifstream fd (filename, std::ios::binary | std::ios::ate);
@@ -319,11 +324,13 @@ void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
 
   /* Find out file size */
   std::size_t len = MIN((long)fd.tellg(), this->localConfig.maxBufferLen);
-
+  std::cout << "STORING "<<len<<" bytes"<<std::endl;
   fd.seekg(std::ios::beg);
   *ptr = (char*) malloc(sizeof(char)*(len+1));
   fd.read(*ptr, len);
+  fd.close();
   (*ptr)[len]='\0';
+  std::cout << "DONE"<<std::endl;
 }
 
 void Silicon::copyBuffer(char **ptr, const char* origin)
@@ -345,7 +352,7 @@ void Silicon::configure()
   /* Configure this instance max buffer length */
   if (this->localConfig.maxBufferLen==0)
     this->localConfig.maxBufferLen = globalConfig.maxBufferLen;
-
+  std::cout << "SET MBL = "<<this->localConfig.maxBufferLen<< " = "<< globalConfig.maxBufferLen<<std::endl;
   this->localConfig.leaveUnmatchedKwds = globalConfig.leaveUnmatchedKwds;
 
   /* Fill global keywords, functions and conditions */
@@ -418,11 +425,16 @@ std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
 
 std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options)
 {
+  std::cout << " BLOQUE  !!!!!!!! BUFLEN: "<<this->localConfig.maxBufferLen<<std::endl;
+  return "BLOQUE";
+  std::cout << "MIRO UN BLOQUE"<<std::endl;
+  std::cout << "**"<<s->localConfig.basePath<<"**"<<std::endl;
+  std::cout << " BUFLEN: "<<this->localConfig.maxBufferLen<<std::endl;
   auto tplt = options.find("template");
   if (tplt == options.end())
     throw SiliconException(20, "Block template not found.", getCurrentLine(), getCurrentPos());
 
-  char *blockData;
+  char *blockData=NULL;
   std::string res;
   this->extractFile(&blockData, tplt->second);
   this->_parse(res, blockData);
@@ -530,8 +542,9 @@ long Silicon::addToCollection(std::string kw, long pos, std::string key, std::st
 
 Silicon::~Silicon()
 {
-  if (_data)
-    free(_data);
+  std::cout << "DESTROY EN CURSO"<<std::endl;
+  /* if (_data) */
+  /*   free(_data); */
 }
 
 Silicon Silicon::createFromFile(const char * file, const char* defaultPath, long maxBufferLen)
@@ -639,6 +652,8 @@ long Silicon::_parse(std :: string & destination, char * strptr, bool write, std
 		  if (write)
 		    {
 		      auto f = getFunction(temp);
+		      std::cout << "FUNCION: "<<temp<<std::endl;
+		      std::cout << "BUFLEN: "<<this->localConfig.maxBufferLen<<std::endl<<"------"<<std::endl;
 		      destination+=f(this, tempArgs, tempData);
 		    }
 		}

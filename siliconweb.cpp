@@ -11,7 +11,12 @@
 * @date 28 sep 2015
 *
 * Changelog:
-*
+*   - 20151008 : bug fixed. When using includeCss with 
+*       _renderResources="0" and no media argument, it gives
+*       access violation error due to how includeCss extracts
+*       media using argument list.
+*   - 20151008 : bug fixed. Leave absolute CSS/JS paths as is, don't
+*       concat path
 *
 *
 *************************************************************/
@@ -48,6 +53,15 @@ namespace
   std::string addSlash(std::string path)
   {
     return ( (!path.empty()) && (path.back()!='/') )?path+'/':path;
+  }
+
+  bool isAbsolute(std::string url)
+  {
+    if (url.front()=='/')
+      return true;
+
+    std::string cut8=url.substr(0,8);
+    return ( (cut8.substr(0,7)=="http://") || (cut8=="https://") );
   }
 }
 
@@ -129,12 +143,13 @@ std::string SiliconWeb::renderCss (Silicon* s, Silicon::StringMap args, std::str
 std::string SiliconWeb::includeCss (Silicon* s, Silicon::StringMap args, std::string input)
 {
   std::string out;
-  auto file=args.find("file");
-  if (file==args.end())
+  auto _file=args.find("file");
+  if (_file==args.end())
     return "";
 
   auto media=args.find("media");
-  out= "<link href=\""+getCssUrl(s)+file->second+"\" rel=\"stylesheet\" type=\"text/css\"";
+  std::string file = (isAbsolute(_file->second))?_file->second:getCssUrl(s)+_file->second;
+  out= "<link href=\""+file+"\" rel=\"stylesheet\" type=\"text/css\"";
   if (media!=args.end())
     out+=" media=\""+media->second+"\"";
   out+=" />";
@@ -142,7 +157,12 @@ std::string SiliconWeb::includeCss (Silicon* s, Silicon::StringMap args, std::st
   if (getDoRender(s))
     return out;
   else
-    s->addToCollection("_CSS", { { "file", file->second }, { "href", getCssUrl(s)+file->second }, { "media", media->second }, { "code", out } });
+      s->addToCollection("_CSS", {
+	  { "file", _file->second },
+	  { "href", file },
+	  { "media", (media!=args.end())?media->second:"" },
+	  { "code", out }
+	});
 
   return "";
 }
@@ -180,16 +200,17 @@ bool SiliconWeb::getDoRender(Silicon * s)
 std::string SiliconWeb::includeJs(Silicon * s, Silicon :: StringMap args, std :: string input)
 {
   std::string out;
-  auto file=args.find("file");
-  if (file==args.end())
+  auto _file=args.find("file");
+  if (_file==args.end())
     return "";
 
-  out= "<script type=\"text/javascript\" src=\""+getJsUrl(s)+file->second+"\" rel=\"stylesheet\"></script>";
+  std::string file = (isAbsolute(_file->second))?_file->second:getJsUrl(s)+_file->second;
+  out= "<script type=\"text/javascript\" src=\""+file+"\" rel=\"stylesheet\"></script>";
 
   if (getDoRender(s))
     return out;
   else
-    s->addToCollection("_JS", { { "file", file->second }, { "src", getJsUrl(s)+file->second }, { "code", out } });
+    s->addToCollection("_JS", { { "file", _file->second }, { "src", file }, { "code", out } });
 
   return "";
 }
