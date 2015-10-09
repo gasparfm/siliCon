@@ -270,6 +270,9 @@ std::map<std::string, Silicon::LongOperator> Silicon::globalConditionLongOperato
 std::map<std::string, Silicon::DoubleOperator> Silicon::globalConditionDoubleOperators;
 std::string Silicon::contentsKeyword="contents";
 char* Silicon::layoutData=NULL;
+#if USEMUTEX
+std::mutex Silicon::layoutMutex;
+#endif
 
 Silicon Silicon::createFromFile(std::string & file, std::string defaultPath, long maxBufferLen)
 {
@@ -303,7 +306,6 @@ Silicon::Silicon(const char* file, const char* defaultPath, long maxBufferLen)
 {
   this->localConfig.maxBufferLen = maxBufferLen;
   this->localConfig.basePath = (defaultPath)?defaultPath:"";
-  std::cout << "BASEPATH: "<<this->localConfig.basePath<<std::endl;
   this->configure();
 
   this->extractFile(&this->_data, file);
@@ -311,11 +313,6 @@ Silicon::Silicon(const char* file, const char* defaultPath, long maxBufferLen)
 
 void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
 {
-  std::cout << " USEPATH: "<<usePath<<std::endl;
-  std::cout << " MAS: "<<this->localConfig.maxBufferLen<<std::endl;
-  std::cout << " READING: "<<filename<<std::endl;
-  std::cout << " BASE PATH: "<<this->localConfig.basePath<<std::endl;
-  std::cout << " USEPATH: "<<usePath<<std::endl;
   filename = fixPath(filename, this->localConfig.basePath, usePath);
 
   std::ifstream fd (filename, std::ios::binary | std::ios::ate);
@@ -324,13 +321,11 @@ void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
 
   /* Find out file size */
   std::size_t len = MIN((long)fd.tellg(), this->localConfig.maxBufferLen);
-  std::cout << "STORING "<<len<<" bytes"<<std::endl;
   fd.seekg(std::ios::beg);
   *ptr = (char*) malloc(sizeof(char)*(len+1));
   fd.read(*ptr, len);
   fd.close();
   (*ptr)[len]='\0';
-  std::cout << "DONE"<<std::endl;
 }
 
 void Silicon::copyBuffer(char **ptr, const char* origin)
@@ -352,7 +347,7 @@ void Silicon::configure()
   /* Configure this instance max buffer length */
   if (this->localConfig.maxBufferLen==0)
     this->localConfig.maxBufferLen = globalConfig.maxBufferLen;
-  std::cout << "SET MBL = "<<this->localConfig.maxBufferLen<< " = "<< globalConfig.maxBufferLen<<std::endl;
+
   this->localConfig.leaveUnmatchedKwds = globalConfig.leaveUnmatchedKwds;
 
   /* Fill global keywords, functions and conditions */
@@ -372,12 +367,12 @@ void Silicon::configure()
 				 [this] (Silicon* s, StringMap, std::string) { 
 				   return std::to_string(globalKeywords.size()+this->localKeywords.size()); 
 				 });
-      Silicon::setGlobalFunction("date", std::bind(&Silicon::globalFuncDate, this, std::placeholders::_1, std::placeholders::_2));
-      Silicon::setGlobalFunction("block", std::bind(&Silicon::globalFuncBlock, this, std::placeholders::_1, std::placeholders::_2));
-      Silicon::setGlobalFunction("set", std::bind(&Silicon::globalFuncSet, this, std::placeholders::_1, std::placeholders::_2));
-      Silicon::setGlobalFunction("inc", std::bind(&Silicon::globalFuncInc, this, std::placeholders::_1, std::placeholders::_2));
-      Silicon::setGlobalFunction("pwd", std::bind(&Silicon::globalFuncPwd, this, std::placeholders::_1, std::placeholders::_2));
-      Silicon::setGlobalFunction("insert", std::bind(&Silicon::globalFuncInsert, this, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("date", std::bind(Silicon::globalFuncDate, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("block", std::bind(Silicon::globalFuncBlock, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("set", std::bind(Silicon::globalFuncSet, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("inc", std::bind(Silicon::globalFuncInc, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("pwd", std::bind(Silicon::globalFuncPwd, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("insert", std::bind(Silicon::globalFuncInsert, std::placeholders::_1, std::placeholders::_2));
       configuredGlobals.functions = true;
     }
 
@@ -392,12 +387,12 @@ std::string Silicon::globalFuncInsert(Silicon* s, Silicon::StringMap options)
 {
   auto _colname = options.find("0");
   if (_colname == options.end())
-    throw SiliconException(26, "Collection to insert to isn't specified", getCurrentLine(), getCurrentPos());
+    throw SiliconException(26, "Collection to insert to isn't specified", s->getCurrentLine(), s->getCurrentPos());
 
   std::string colname = _colname->second;
 
   options.erase("0");
-  addToCollection(colname, options);
+  s->addToCollection(colname, options);
 
   return "";
 }
@@ -425,19 +420,14 @@ std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
 
 std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options)
 {
-  std::cout << " BLOQUE  !!!!!!!! BUFLEN: "<<this->localConfig.maxBufferLen<<std::endl;
-  return "BLOQUE";
-  std::cout << "MIRO UN BLOQUE"<<std::endl;
-  std::cout << "**"<<s->localConfig.basePath<<"**"<<std::endl;
-  std::cout << " BUFLEN: "<<this->localConfig.maxBufferLen<<std::endl;
   auto tplt = options.find("template");
   if (tplt == options.end())
-    throw SiliconException(20, "Block template not found.", getCurrentLine(), getCurrentPos());
+    throw SiliconException(20, "Block template not found.", s->getCurrentLine(), s->getCurrentPos());
 
   char *blockData=NULL;
   std::string res;
-  this->extractFile(&blockData, tplt->second);
-  this->_parse(res, blockData);
+  s->extractFile(&blockData, tplt->second);
+  s->_parse(res, blockData);
   free(blockData);
 
   return res;
@@ -542,9 +532,8 @@ long Silicon::addToCollection(std::string kw, long pos, std::string key, std::st
 
 Silicon::~Silicon()
 {
-  std::cout << "DESTROY EN CURSO"<<std::endl;
-  /* if (_data) */
-  /*   free(_data); */
+  if (_data)
+    free(_data);
 }
 
 Silicon Silicon::createFromFile(const char * file, const char* defaultPath, long maxBufferLen)
@@ -652,8 +641,6 @@ long Silicon::_parse(std :: string & destination, char * strptr, bool write, std
 		  if (write)
 		    {
 		      auto f = getFunction(temp);
-		      std::cout << "FUNCION: "<<temp<<std::endl;
-		      std::cout << "BUFLEN: "<<this->localConfig.maxBufferLen<<std::endl<<"------"<<std::endl;
 		      destination+=f(this, tempArgs, tempData);
 		    }
 		}
@@ -1336,11 +1323,15 @@ void Silicon::setGlobalFunction(std::string name, Silicon::TemplateFunction call
 
 void Silicon::setLayout(Silicon::LayoutType ltype, const char* layout)
 {
+
   if (Silicon::layoutData!=NULL)
     free(Silicon::layoutData);
 
   if (ltype==FILE)
     {
+#if USEMUTEX
+      std::lock_guard<std::mutex> lock(layoutMutex);
+#endif
       this->extractFile(&Silicon::layoutData, layout);
     }
   else

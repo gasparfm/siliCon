@@ -4,12 +4,22 @@
 #ifndef _SILICON_H
 #define _SILICON_H 1
 
+/**
+ * Use mutexes or not
+ */
+#ifndef USEMUTEX
+  #define USEMUTEX 1
+#endif
+
 #include <string>
 #include <exception>
 #include <functional>
 #include <map>
 #include <vector>
 
+#if USEMUTEX
+  #include <mutex>
+#endif
 /** This will be our default maximum buffer length. Templates must not exceed
  this size in bytes */
 #define MAXBUFFERLEN 16384
@@ -665,7 +675,7 @@ protected:
    *
    * @return return string
    */
-  std::string globalFuncDate(Silicon* s, StringMap options);
+  static std::string globalFuncDate(Silicon* s, StringMap options);
 
   /**
    * Function block. Gets contents of a block template
@@ -675,7 +685,7 @@ protected:
    *
    * @return return string
    */
-  std::string globalFuncBlock(Silicon* s, StringMap options);
+  static std::string globalFuncBlock(Silicon* s, StringMap options);
 
   /**
    * Sets the value of a variable (here, keyword)
@@ -685,7 +695,7 @@ protected:
    *
    * @return Empty string
    */
-  std::string globalFuncSet(Silicon* s, StringMap options);
+  static std::string globalFuncSet(Silicon* s, StringMap options);
 
   /**
    * Increment the value of a variable
@@ -698,7 +708,7 @@ protected:
    * @note If keyword is not numeric, replaces it with 1
    * @return Empty string
    */
-  std::string globalFuncInc(Silicon* s, StringMap options);
+  static std::string globalFuncInc(Silicon* s, StringMap options);
 
   /**
    * Gets current directory. No arguments, if you put sth. will
@@ -709,7 +719,7 @@ protected:
    *
    * @return return string
    */
-  std::string globalFuncPwd(Silicon* s, StringMap options);
+  static std::string globalFuncPwd(Silicon* s, StringMap options);
 
   /**
    * Function insert. Insert elements into collection.
@@ -721,7 +731,7 @@ protected:
    *
    * @return return string
    */
-  std::string globalFuncInsert(Silicon* s, StringMap options);
+  static std::string globalFuncInsert(Silicon* s, StringMap options);
 
   /**
    * Gets value from string. This value could be a variable, expression, 
@@ -737,6 +747,10 @@ protected:
 
 private:
   char* _data = NULL;
+
+#if USEMUTEX
+  static std::mutex layoutMutex;
+#endif
 
   struct
   {
