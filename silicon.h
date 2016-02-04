@@ -147,7 +147,7 @@ public:
    * @param defaultPath Default path for files (layouts, blocks...)
    * @param maxBufferLen Default Maximum buffer length for each file
    */
-  static Silicon createFromFile(std::string& file, std::string defaultPath="", long maxBufferLen=0);
+  static Silicon createFromFile(const std::string& file, std::string defaultPath="", long maxBufferLen=0);
   static Silicon createFromFile(const char* file, const char* defaultPath=NULL, long maxBufferLen=0);
 
   /**

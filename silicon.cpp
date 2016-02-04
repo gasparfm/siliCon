@@ -12,6 +12,7 @@
 * @date 30 aug 2015
 *
 * Changelog:
+*   20150202 : const std::string& in createFromFile()
 *   20150925 : Launched version 0.2
 *   20151001 : Bugs fixed:
 *                 - Unterminated strings when putting dates and paths
@@ -274,7 +275,7 @@ char* Silicon::layoutData=NULL;
 std::mutex Silicon::layoutMutex;
 #endif
 
-Silicon Silicon::createFromFile(std::string & file, std::string defaultPath, long maxBufferLen)
+Silicon Silicon::createFromFile(const std::string & file, std::string defaultPath, long maxBufferLen)
 {
   return Silicon(file.c_str(), (defaultPath.empty())?NULL:defaultPath.c_str(), maxBufferLen);
 }
