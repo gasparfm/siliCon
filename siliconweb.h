@@ -63,13 +63,19 @@ class SiliconWeb : public SiliconLoader
     return _renderDefault;
   }
 
+  /* Include CSS by code, just add it to the collection */
+  static void includeCss(Silicon* s, std::string file, std::string media="");
+  /* Include JS by code, adding it to the collection */
+  static void includeJs(Silicon* s, std::string file);
+  /* Add direct Js to the collection  */
+  static void directJs(Silicon* s, std::string code);
  protected:
   /* options file=cssfile media=media (optional) */
-  static std::string includeCss (Silicon* s, Silicon::StringMap args, std::string input);
+  static std::string _includeCss (Silicon* s, Silicon::StringMap args, std::string input);
   /* options file=jsfile */
-  static std::string includeJs (Silicon* s, Silicon::StringMap args, std::string input);
+  static std::string _includeJs (Silicon* s, Silicon::StringMap args, std::string input);
   /* no options, but reads data */
-  static std::string directJs (Silicon* s, Silicon::StringMap args, std::string input);
+  static std::string _directJs (Silicon* s, Silicon::StringMap args, std::string input);
 
   /* options comments=1 (optional) renders starting and ending comments */
   static std::string renderCss (Silicon* s, Silicon::StringMap args, std::string input);

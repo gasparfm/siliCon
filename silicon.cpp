@@ -12,7 +12,10 @@
 * @date 30 aug 2015
 *
 * Changelog:
-*   20150202 : const std::string& in createFromFile()
+*   20160210 : Blocks now have configurable arguments
+*   20160208 : Disable output when rendering empty collections
+*   20160207 : fixing method access for globals
+*   20160202 : const std::string& in createFromFile()
 *   20150925 : Launched version 0.2
 *   20151001 : Bugs fixed:
 *                 - Unterminated strings when putting dates and paths
@@ -280,17 +283,17 @@ Silicon Silicon::createFromFile(const std::string & file, std::string defaultPat
   return Silicon(file.c_str(), (defaultPath.empty())?NULL:defaultPath.c_str(), maxBufferLen);
 }
 
-inline void Silicon::SetBasePathGlobal(std::string newval)
+void Silicon::SetBasePathGlobal(std::string newval)
 {
   globalConfig.basePath = newval;
 }
 
-inline void Silicon::setLeaveUnmatchedKwdsGlobal(bool newval)
+void Silicon::setLeaveUnmatchedKwdsGlobal(bool newval)
 {
   globalConfig.leaveUnmatchedKwds = newval;
 }
 
-inline void Silicon::setMaxBufferLenGlobal(long newval)
+void Silicon::setMaxBufferLenGlobal(long newval)
 {
   globalConfig.maxBufferLen = newval;
 }
@@ -369,11 +372,12 @@ void Silicon::configure()
 				   return std::to_string(globalKeywords.size()+this->localKeywords.size()); 
 				 });
       Silicon::setGlobalFunction("date", std::bind(Silicon::globalFuncDate, std::placeholders::_1, std::placeholders::_2));
-      Silicon::setGlobalFunction("block", std::bind(Silicon::globalFuncBlock, std::placeholders::_1, std::placeholders::_2));
+      Silicon::setGlobalFunction("block", std::bind(Silicon::globalFuncBlock, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
       Silicon::setGlobalFunction("set", std::bind(Silicon::globalFuncSet, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("inc", std::bind(Silicon::globalFuncInc, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("pwd", std::bind(Silicon::globalFuncPwd, std::placeholders::_1, std::placeholders::_2));
       Silicon::setGlobalFunction("insert", std::bind(Silicon::globalFuncInsert, std::placeholders::_1, std::placeholders::_2));
+
       configuredGlobals.functions = true;
     }
 
@@ -419,17 +423,38 @@ std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
   return std::put_time(&tm, format.c_str());
 }
 
-std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options)
+std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options, std::string additionalData)
 {
   auto tplt = options.find("template");
   if (tplt == options.end())
     throw SiliconException(20, "Block template not found.", s->getCurrentLine(), s->getCurrentPos());
 
+  std::vector<std::string> kwds;
+
   char *blockData=NULL;
   std::string res;
+  for (auto op : options)
+    {
+      if (op.first != "template")
+	{
+	  auto kwname = "block."+op.first;
+	  s->setKeyword(kwname, op.second);
+	  kwds.push_back(kwname);
+	}
+    }
+
+  if (!additionalData.empty())
+    {
+      s->setKeyword("block._contents", additionalData);
+      kwds.push_back("block._contents");
+    }
+
   s->extractFile(&blockData, tplt->second);
   s->_parse(res, blockData);
   free(blockData);
+
+  for (auto k : kwds)
+    s->delKeyword(k);
 
   return res;
 }
@@ -927,31 +952,38 @@ long Silicon::computeBuiltinCollection(char* strptr, std::string &destination, S
   this->setKeyword(collectionVar+"._totalLines", std::to_string(totalLines));
   this->setKeyword(collectionVar+"._totalIterations", std::to_string(iterations));
 
-  for (auto i : coll->second)
+  if (coll->second.size()==0)
     {
-      if (line == iterations)
-	break;
-      else
-	this->setKeyword(collectionVar+"._last", (line == iterations-1)?"1":"0");
-
-      this->setKeyword(collectionVar+"._even", (line%2==0)?"1":"0");
-
-      this->setKeyword(collectionVar+"._lineNumber", std::to_string(line));
-      for (auto z : i)
-	{
-	  /* Meter mas variables como el numero de linea,
-	     El total de lineas, si la linea es la última o no.
-	     Si la línea es par o impar
-	     Verificar que %if "0" funciona... */
-	  this->setKeyword(collectionVar+"."+z.first, z.second);
-	}
-      if (line>0)
-	stopStatsUpdate();
-
-      n = _parse(destination, strptr, write, "collection", level+1);
-
-      ++line;
+      std::string dummy;
+    /* Parse but without output */
+      n=_parse(dummy, strptr, write, "collection", level+1);
     }
+  else
+    for (auto i : coll->second)
+      {
+	if (line == iterations)
+	  break;
+	else
+	  this->setKeyword(collectionVar+"._last", (line == iterations-1)?"1":"0");
+
+	this->setKeyword(collectionVar+"._even", (line%2==0)?"1":"0");
+
+	this->setKeyword(collectionVar+"._lineNumber", std::to_string(line));
+	for (auto z : i)
+	  {
+	    /* Meter mas variables como el numero de linea,
+	       El total de lineas, si la linea es la última o no.
+	       Si la línea es par o impar
+	       Verificar que %if "0" funciona... */
+	    this->setKeyword(collectionVar+"."+z.first, z.second);
+	  }
+	if (line>0)
+	  stopStatsUpdate();
+
+	n = _parse(destination, strptr, write, "collection", level+1);
+
+	++line;
+      }
 
   return n;
 }
@@ -1258,6 +1290,14 @@ void Silicon::setKeyword(std::string kw, std::string text)
 {
   localKeywords[kw] = text;
 }
+
+void Silicon::delKeyword(std::string kw)
+{
+  auto k = localKeywords.find(kw);
+  if (k != localKeywords.end())
+    localKeywords.erase(k);
+}
+
 
 void Silicon::setGlobalKeyword(std::string kw, std::string text)
 {

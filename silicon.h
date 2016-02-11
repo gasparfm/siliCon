@@ -187,7 +187,7 @@ public:
    *
    * @param newval New base path
    */
-  static inline void SetBasePathGlobal(std::string newval);
+  static void SetBasePathGlobal(std::string newval);
 
   /**
    * Gets base path
@@ -216,7 +216,7 @@ public:
    *
    * @param newval New value
    */
-  static inline void setLeaveUnmatchedKwdsGlobal(bool newval);
+  static void setLeaveUnmatchedKwdsGlobal(bool newval);
 
   /** 
    * Getter  
@@ -243,7 +243,7 @@ public:
    *
    * @param newval New value
    */
-  static inline void setMaxBufferLenGlobal(long newval);
+  static void setMaxBufferLenGlobal(long newval);
 
   /** 
    * Getter for max. buffer length
@@ -281,6 +281,13 @@ public:
    * @param text Text to replace the keyword.
    */
   void setKeyword(std::string kw, std::string text);
+
+  /**
+   * Delete new local keyword
+   *
+   * @param kw Keyword. Without {{ }}
+   */
+  void delKeyword(std::string kw);
 
   /**
    * Sets global keyword for all instances.
@@ -685,7 +692,7 @@ protected:
    *
    * @return return string
    */
-  static std::string globalFuncBlock(Silicon* s, StringMap options);
+  static std::string globalFuncBlock(Silicon* s, StringMap options, std::string additionalData);
 
   /**
    * Sets the value of a variable (here, keyword)

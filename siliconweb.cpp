@@ -11,6 +11,8 @@
 * @date 28 sep 2015
 *
 * Changelog:
+*   - 20160207 : Javascripts are not rel="stylesheet"!!
+*   - 20160205 : includeCss / includeJs / directJs as members too
 *   - 20151008 : bug fixed. When using includeCss with 
 *       _renderResources="0" and no media argument, it gives
 *       access violation error due to how includeCss extracts
@@ -47,6 +49,7 @@
   Available methods (for C++):
   */
 #include "siliconweb.h"
+#include <iostream>
 
 namespace
 {
@@ -74,9 +77,9 @@ void SiliconWeb::load(Silicon * s)
 {
   loadKeyword("_siliconWeb", "1", s);
 
-  loadFunction("includeCss", SiliconWeb::includeCss, s);
-  loadFunction("includeJs", SiliconWeb::includeJs, s);
-  loadFunction("directJs", SiliconWeb::directJs, s);
+  loadFunction("includeCss", SiliconWeb::_includeCss, s);
+  loadFunction("includeJs", SiliconWeb::_includeJs, s);
+  loadFunction("directJs", SiliconWeb::_directJs, s);
   loadFunction("renderCss", SiliconWeb::renderCss, s);
   loadFunction("renderJs", SiliconWeb::renderJs, s);
   loadFunction("list", SiliconWeb::list, s);
@@ -115,6 +118,42 @@ std::string SiliconWeb::list (Silicon* s, Silicon::StringMap args, std::string i
   return s->parse(templ);
 }
 
+/* Include CSS by code, just add it to the collection */
+void SiliconWeb::includeCss(Silicon* s, std::string file, std::string media)
+{
+  std::string fileabs = (isAbsolute(file))?file:getCssUrl(s)+file;
+  std::string out = "<link href=\""+fileabs+"\" rel=\"stylesheet\" type=\"text/css\"";
+  if (!media.empty())
+    out+=" media=\""+media+"\"";
+  out+=" />";
+  s->addToCollection("_CSS", {
+	  { "file", file },
+	  { "href", fileabs },
+	  { "media", media },
+	  { "code", out }
+    });
+}
+
+/* Include JS by code, adding it to the collection */
+void SiliconWeb::includeJs(Silicon* s, std::string file)
+{
+  std::string fileabs = (isAbsolute(file))?file:getJsUrl(s)+file;
+  std::string out = "<script type=\"text/javascript\" src=\""+fileabs+"\" rel=\"stylesheet\"></script>";
+  s->addToCollection("_JS", {
+	  { "file", file },
+	  { "src", fileabs },
+	  { "code", out }
+    });}
+
+/* Add direct Js to the collection  */
+void SiliconWeb::directJs(Silicon* s, std::string code)
+{
+  if (code.empty())
+    return;
+
+  s->addToCollection("_directJS", { { "code", code } });
+}
+
 std::string SiliconWeb::renderCss (Silicon* s, Silicon::StringMap args, std::string input)
 {
   auto list = s->getCollection("_CSS");
@@ -140,7 +179,7 @@ std::string SiliconWeb::renderCss (Silicon* s, Silicon::StringMap args, std::str
   return out;
 }
 
-std::string SiliconWeb::includeCss (Silicon* s, Silicon::StringMap args, std::string input)
+std::string SiliconWeb::_includeCss (Silicon* s, Silicon::StringMap args, std::string input)
 {
   std::string out;
   auto _file=args.find("file");
@@ -197,7 +236,7 @@ bool SiliconWeb::getDoRender(Silicon * s)
   return (render.empty())?_renderDefault:(render!="0");
 }
 
-std::string SiliconWeb::includeJs(Silicon * s, Silicon :: StringMap args, std :: string input)
+std::string SiliconWeb::_includeJs(Silicon * s, Silicon :: StringMap args, std :: string input)
 {
   std::string out;
   auto _file=args.find("file");
@@ -205,7 +244,7 @@ std::string SiliconWeb::includeJs(Silicon * s, Silicon :: StringMap args, std ::
     return "";
 
   std::string file = (isAbsolute(_file->second))?_file->second:getJsUrl(s)+_file->second;
-  out= "<script type=\"text/javascript\" src=\""+file+"\" rel=\"stylesheet\"></script>";
+  out= "<script type=\"text/javascript\" src=\""+file+"\"></script>";
 
   if (getDoRender(s))
     return out;
@@ -215,7 +254,7 @@ std::string SiliconWeb::includeJs(Silicon * s, Silicon :: StringMap args, std ::
   return "";
 }
 
-std::string SiliconWeb::directJs(Silicon * s, Silicon :: StringMap args, std :: string input)
+std::string SiliconWeb::_directJs(Silicon * s, Silicon :: StringMap args, std :: string input)
 {
   if (input.empty())
     return "";
