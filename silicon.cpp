@@ -13,7 +13,8 @@
 *
 * Changelog:
 *   20160607 : Fixed > operator
-*              Second condition values can be variables 
+*              Second condition values can be variables
+*              Can change template without re-constructing
 *   20160210 : Blocks now have configurable arguments
 *   20160208 : Disable output when rendering empty collections
 *   20160207 : fixing method access for globals
@@ -118,7 +119,6 @@ namespace
      */
     bool apply(std::string op)
     {
-      std::cout << "A="<<a<<" y B="<<b<<std::endl;
       if (op == "==")
 	return (a == b);
       else if (op == "!=")
@@ -322,6 +322,12 @@ void Silicon::setData(const char* data)
 {
   free(this->_data);
   this->copyBuffer(&this->_data, data);
+}
+
+void Silicon::setData(const std::string& data)
+{
+  free(this->_data);
+  this->copyBuffer(&this->_data, data.c_str());
 }
 
 void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
