@@ -12,6 +12,8 @@
 * @date 30 aug 2015
 *
 * Changelog:
+*   20160607 : Fixed > operator
+*              Second condition values can be variables 
 *   20160210 : Blocks now have configurable arguments
 *   20160208 : Disable output when rendering empty collections
 *   20160207 : fixing method access for globals
@@ -116,11 +118,12 @@ namespace
      */
     bool apply(std::string op)
     {
+      std::cout << "A="<<a<<" y B="<<b<<std::endl;
       if (op == "==")
 	return (a == b);
       else if (op == "!=")
 	return (a != b);
-      else if (op == ">=")
+      else if (op == ">")
 	return (a>b);
       else if (op == ">=")
 	return (a>=b);
@@ -1078,6 +1081,7 @@ bool Silicon::evaluateCondition(std::string condition)
       std::string a = getKeyword(condition.substr(0, op));
       std::string b;
       std::string _op = getOperator(condition, op, b);
+
       if (b.empty())
 	throw SiliconException(13, "Right value can't be empty", getCurrentLine(), getCurrentPos());
 
@@ -1092,6 +1096,9 @@ bool Silicon::evaluateCondition(std::string condition)
 	}
       else
 	{
+	  std::string b_;
+	  if (getKeyword(b, b_))
+	    b=b_;
 	  /* Gets long long or long double... */
 	  numeric = conditionNumericAB(a, b, lla, llb);
 	  if (!numeric)
