@@ -318,6 +318,12 @@ Silicon::Silicon(const char* file, const char* defaultPath, long maxBufferLen)
   this->extractFile(&this->_data, file);
 }
 
+void Silicon::setData(const char* data)
+{
+  free(this->_data);
+  this->copyBuffer(&this->_data, data);
+}
+
 void Silicon::extractFile(char **ptr, std::string filename, bool usePath)
 {
   filename = fixPath(filename, this->localConfig.basePath, usePath);
