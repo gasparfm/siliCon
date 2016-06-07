@@ -15,6 +15,7 @@
 *   20160607 : Fixed > operator
 *              Second condition values can be variables
 *              Can change template without re-constructing
+*              Fixed date function
 *   20160210 : Blocks now have configurable arguments
 *   20160208 : Disable output when rendering empty collections
 *   20160207 : fixing method access for globals
@@ -434,7 +435,7 @@ std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
   localtime_r( &now, &tm );
 
   std::string format = ( fmt !=options.end())?fmt->second:"%Y%m%d";
-  return std::put_time(&tm, "%d/%m/%Y");
+  //  return std::put_time(&tm, "%d/%m/%Y");
   return std::put_time(&tm, format.c_str());
 }
 
