@@ -35,7 +35,7 @@ int main()
     "  NAME: {{kaka.name}}  | AGE: {{kaka.age}}\n"
     "{/collection}}\n"
     "=========================\n"
-    "{!block template=bloque.html/}\n"
+    //    "{!block template=bloque.html/}\n"
     "Total keywords: {!SiliconTotalKeywords/}\n";
   Silicon::setGlobalKeyword("ProjectTitle", "Silicon Example");
   Silicon::setGlobalKeyword("Author", "Gaspar Fernández");

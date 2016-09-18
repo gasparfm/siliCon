@@ -255,6 +255,9 @@ public:
     return this->localConfig.maxBufferLen;
   }
 
+  /* SetData */
+  void setData(const char* data);
+  void setData(const std::string& data);
   /* Layouts related methods */
 
   /**

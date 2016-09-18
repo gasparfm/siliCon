@@ -32,9 +32,9 @@ int main(int argc, char* argv[])
   Silicon::setGlobalKeyword("ProjectTitle", "Silicon Example");
   Silicon::setGlobalKeyword("Author", "Gaspar Fernández");
   Silicon::setGlobalKeyword("AuthorEmail", "gaspar.fernandez@totaki.com");
-  Silicon t = Silicon::createFromFile("sample1.html", "views/");
+  Silicon t = Silicon::createFromFile("sample0.html", "views/");
   //  t.setBasePath("views/");
-  t.setLayout("sample_layout.html");
+  t.setLayout("sample_layout0.html");
   t.setKeyword("PageTitle", "Main");
   for (int i=0; i<6; ++i)
     t.setKeyword("Section"+to_string(i), to_string(sections[i]));
