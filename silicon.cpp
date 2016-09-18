@@ -12,6 +12,7 @@
 * @date 30 aug 2015
 *
 * Changelog:
+*   20160918 : Fixes for GCC >= 5.2
 *   20160607 : Fixed > operator
 *              Second condition values can be variables
 *              Can change template without re-constructing
@@ -59,6 +60,8 @@
 #include <fstream>
 #include <ctime>
 #include <unistd.h>
+#include <iomanip>
+#include <sstream>
 
 #define SILICONVERSION "0.2"
 #define DIRECTORY_SEPARATOR '/'
@@ -435,8 +438,10 @@ std::string Silicon::globalFuncDate(Silicon* s, Silicon::StringMap options)
   localtime_r( &now, &tm );
 
   std::string format = ( fmt !=options.end())?fmt->second:"%Y%m%d";
+	std::stringstream ss;
   //  return std::put_time(&tm, "%d/%m/%Y");
-  return std::put_time(&tm, format.c_str());
+  ss << std::put_time(&tm, format.c_str());
+	return ss.str();
 }
 
 std::string Silicon::globalFuncBlock(Silicon* s, Silicon::StringMap options, std::string additionalData)
