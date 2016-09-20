@@ -258,7 +258,7 @@ namespace
 /* We don't have put_time in earlier GCC versions, so, if we
  use one of them, this function will be used instead.
 */
-#if defined(__GNUC__) && (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__ <= 40902 )
+#if defined(__GNUC__) && (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__ <= 50200 )
   namespace std
   {
     static std::string put_time( const std::tm* tmb, const char* fmt )
